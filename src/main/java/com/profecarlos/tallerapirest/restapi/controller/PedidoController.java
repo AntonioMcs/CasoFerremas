@@ -1,13 +1,7 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
-import java.util.HashSet;
-
-
-
 import java.util.List;
-import java.util.Set;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -20,137 +14,123 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.profecarlos.tallerapirest.restapi.dto.PedidoDTO;
+import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
 import com.profecarlos.tallerapirest.restapi.model.Pedido;
 import com.profecarlos.tallerapirest.restapi.model.Usuario;
-import com.profecarlos.tallerapirest.restapi.model.Category;
-import com.profecarlos.tallerapirest.restapi.model.Product;
-import com.profecarlos.tallerapirest.restapi.repository.CategoryRepository;
+import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
-import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
 import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/pedidos")
 public class PedidoController {
-    // Inyección del repositorio
-    @Autowired
-    private PedidoRepository pedidoRepository;
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private static final List<String> METODOS_PAGO = List.of("efectivo", "tarjeta", "transferencia");
+    private static final List<String> TIPOS_ENTREGA = List.of("retiro_tienda", "despacho_domicilio");
 
-    @Autowired
-    private UserRepository usuarioRepository;
+    private final PedidoRepository pedidoRepository;
+    private final UserRepository userRepository;
+    private final EstadoPedidoRepository estadoPedidoRepository;
 
-    @Autowired
-    private ProductRepository productRepository;
-
-    // POST: Crear pedido usando PedidoDTO
-    @PostMapping("pedido")
-    public ResponseEntity<?> insertProduct(@RequestBody PedidoDTO pedidoDTO) {
-        //Verifica si existe una categoria en el body
-        Category categoria = categoryRepository.findById(pedidoDTO.getCategoria()).orElse(null);
-        //Si no encuentra una retorna error
-        if (categoria == null) {
-            return new ResponseEntity<>("Categoría no encontrada ", HttpStatus.BAD_REQUEST);
-        }
-
-        //Variable para obtener la id_usuario y guardarla en (usuario)
-        Usuario usuario = usuarioRepository.findById(pedidoDTO.getUsuarioId()).orElse(null);
-        
-        //Condicion para verificar si se ingresó una id
-        if (pedidoDTO.getUsuarioId() == null) {
-            return new ResponseEntity<>("Error: El ID del usuario (usuarioId) es requerido. ", HttpStatus.BAD_REQUEST);
-        }
-
-        //Condicion para verificar si existe el usuario
-        if (usuario == null){
-            return new ResponseEntity<>("Error: Usuario no encontrado",HttpStatus.NOT_FOUND);
-        }
-
-        Set<Product> productsInPedido = new HashSet<>();
-        if (pedidoDTO.getProductIds() != null){
-            for (Integer productId : pedidoDTO.getProductIds()){
-                Product product = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Producto no encontrado: " + productId));
-                productsInPedido.add(product);
-            }
-        }
-
-        //Proceso de creacion y guardado del objeto
-        Pedido pedido = new Pedido();
-        pedido.setNombre(pedidoDTO.getNombre());
-        pedido.setCategoria(categoria);
-        pedido.setPrecio(pedidoDTO.getPrecio());
-        pedido.setDescripcion(pedidoDTO.getDescripcion());
-        pedido.setUsuario(usuario);
-        pedido.setProducts(productsInPedido);
-        Pedido savedPedido = pedidoRepository.save(pedido);
-        return new ResponseEntity<>(savedPedido, HttpStatus.CREATED);
+    public PedidoController(PedidoRepository pedidoRepository, UserRepository userRepository,
+            EstadoPedidoRepository estadoPedidoRepository) {
+        this.pedidoRepository = pedidoRepository;
+        this.userRepository = userRepository;
+        this.estadoPedidoRepository = estadoPedidoRepository;
     }
 
-    @GetMapping("pedidos")
-    public ResponseEntity<List<Pedido>> getAllProducts() {
-        List<Pedido> Pedidos = pedidoRepository.findAll();
-        return new ResponseEntity<>(Pedidos, HttpStatus.OK);
+    @GetMapping
+    public ResponseEntity<List<Pedido>> listarTodos() {
+        return ResponseEntity.ok(pedidoRepository.findAll());
     }
 
-    // Métodos adicionales para completar el CRUD
-    @GetMapping("pedido/{id}")
-    public ResponseEntity<Pedido> getProductById(@PathVariable("id") int id) {
-        return pedidoRepository.findById(id)                              // Busca el pedido por ID
-                .map(order -> new ResponseEntity<>(order, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
-    }
-
-    @GetMapping("pedidos/categoria/{categoria}")
-    public ResponseEntity<List<Pedido>> getProductsByCategoria(@PathVariable int categoria) {
-        List<Pedido> Pedidos = pedidoRepository.findByCategoriaId(categoria);   // Busca pedidos por ID de categoría
-        return new ResponseEntity<>(Pedidos, HttpStatus.OK);
-    }
-
-    @PutMapping("pedido/{id}")
-    public ResponseEntity<?> updatePedido(@PathVariable("id") int id, @RequestBody PedidoDTO pedidoDTO) {
-    // Verifica si existe el pedido
-    return pedidoRepository.findById(id).map(pedidoExistente -> {
-        // Verifica si existe la categoría
-        Category categoria = categoryRepository.findById(pedidoDTO.getCategoria()).orElse(null);  
-        if (categoria == null) {                                                                     
-            return new ResponseEntity<>("Categoría no encontrada", HttpStatus.BAD_REQUEST);
-        }
-        if (pedidoDTO.getUsuarioId() == null) {            // VERIFICA SI EL ID DEL USUSARIO ES NULO
-            return new ResponseEntity<>("El ID del usuario (usuarioId) es requerido", HttpStatus.BAD_REQUEST);
-        }
-        Usuario usuario = usuarioRepository.findById(pedidoDTO.getUsuarioId()).orElse(null);   
-        if (usuario == null) {                                                                        // VERIFICACION SI EL USUARIO EXISTE
-            return new ResponseEntity<>("Usuario no encontrado", HttpStatus.NOT_FOUND);
-        }
-        pedidoExistente.setNombre(pedidoDTO.getNombre());  
-        pedidoExistente.setDescripcion(pedidoDTO.getDescripcion());
-        pedidoExistente.setPrecio(pedidoDTO.getPrecio());                    //ACTUALIZA LOS CAMBIOS DEL PEDIDO EXISTENTE
-        pedidoExistente.setCategoria(categoria);
-        pedidoExistente.setUsuario(usuario);
-        Pedido pedidoActualizado = pedidoRepository.save(pedidoExistente);
-        return new ResponseEntity<>(pedidoActualizado, HttpStatus.OK);
-    }).orElse(new ResponseEntity<>("Pedido no encontrado", HttpStatus.NOT_FOUND));
-}
-       
-    //ELIMINAR PEDIDO POR ID
-
-    @DeleteMapping("pedido/{id}")
-    public ResponseEntity<Void> deleteOrder(@PathVariable("id") int id) {
+    @GetMapping("/{id}")
+    public ResponseEntity<Pedido> buscarPorId(@PathVariable Integer id) {
         return pedidoRepository.findById(id)
-                .map(pedido -> {
-                    Set<Product> productsInPedido = new HashSet<>();
-                    if (pedido.getProducts() != null){
-                        for (Product product : pedido.getProducts()){
-                            Product prod = productRepository.findById(product.getId())
-                                .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + product.getId()));
-                            productsInPedido.add(prod);
-                        }
-                    }
-                    pedidoRepository.delete(pedido);
-                    return new ResponseEntity<Void>(HttpStatus.NO_CONTENT);
-                })
-                .orElse(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/usuario/{usuarioId}")
+    public ResponseEntity<List<Pedido>> listarPorUsuario(@PathVariable Integer usuarioId) {
+        return ResponseEntity.ok(pedidoRepository.findByUsuarioId(usuarioId));
+    }
+
+    @PostMapping
+    public ResponseEntity<?> crear(@RequestBody PedidoDTO dto) {
+        ResponseEntity<?> validacion = validarDTO(dto);
+        if (validacion != null) {
+            return validacion;
+        }
+
+        Usuario usuario = userRepository.findById(dto.getUsuarioId()).orElse(null);
+        if (usuario == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuario no encontrado");
+        }
+
+        EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId()).orElse(null);
+        if (estadoPedido == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Estado de pedido no encontrado");
+        }
+
+        Pedido pedido = new Pedido();
+        pedido.setUsuario(usuario);
+        pedido.setEstadoPedido(estadoPedido);
+        pedido.setFechaPedido(dto.getFechaPedido());
+        pedido.setTotal(dto.getTotal());
+        pedido.setMetodoPago(dto.getMetodoPago());
+        pedido.setTipoEntrega(dto.getTipoEntrega());
+
+        return new ResponseEntity<>(pedidoRepository.save(pedido), HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable Integer id, @RequestBody PedidoDTO dto) {
+        ResponseEntity<?> validacion = validarDTO(dto);
+        if (validacion != null) {
+            return validacion;
+        }
+
+        return pedidoRepository.findById(id).map(existing -> {
+            Usuario usuario = userRepository.findById(dto.getUsuarioId()).orElse(null);
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuario no encontrado");
+            }
+
+            EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId()).orElse(null);
+            if (estadoPedido == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Estado de pedido no encontrado");
+            }
+
+            existing.setUsuario(usuario);
+            existing.setEstadoPedido(estadoPedido);
+            existing.setFechaPedido(dto.getFechaPedido() != null ? dto.getFechaPedido() : existing.getFechaPedido());
+            existing.setTotal(dto.getTotal());
+            existing.setMetodoPago(dto.getMetodoPago());
+            existing.setTipoEntrega(dto.getTipoEntrega());
+
+            return ResponseEntity.ok(pedidoRepository.save(existing));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        if (!pedidoRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        pedidoRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    private ResponseEntity<?> validarDTO(PedidoDTO dto) {
+        if (!METODOS_PAGO.contains(dto.getMetodoPago())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("metodo_pago debe ser efectivo, tarjeta o transferencia");
+        }
+        if (!TIPOS_ENTREGA.contains(dto.getTipoEntrega())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("tipo_entrega debe ser retiro_tienda o despacho_domicilio");
+        }
+        return null;
     }
 }

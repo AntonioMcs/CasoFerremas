@@ -2,7 +2,6 @@ package com.profecarlos.tallerapirest.restapi.controller;
 
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -18,59 +17,56 @@ import com.profecarlos.tallerapirest.restapi.model.Product;
 import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/products")
 public class ProductController {
-    // Inyección del repositorio
-    @Autowired
-    private ProductRepository productRepository;
 
-    @PostMapping("product")
-    public ResponseEntity<Product> insertProduct(@RequestBody Product producto) {
-        Product savedProduct = productRepository.save(producto);
-        return new ResponseEntity<>(savedProduct, HttpStatus.CREATED);
+    private final ProductRepository productRepository;
+
+    public ProductController(ProductRepository productRepository) {
+        this.productRepository = productRepository;
     }
 
-    @GetMapping("products")
-    public ResponseEntity<List<Product>> getAllProducts() {
-        List<Product> products = productRepository.findAll();
-        return new ResponseEntity<>(products, HttpStatus.OK);
+    @GetMapping
+    public ResponseEntity<List<Product>> listarTodos() {
+        return ResponseEntity.ok(productRepository.findAll());
     }
 
-    // Métodos adicionales para completar el CRUD
-    @GetMapping("product/{id}")
-    public ResponseEntity<Product> getProductById(@PathVariable("id") int id) {
+    @GetMapping("/{id}")
+    public ResponseEntity<Product> buscarPorId(@PathVariable Integer id) {
         return productRepository.findById(id)
-                .map(product -> new ResponseEntity<>(product, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("products/categoria/{categoria}")
-    public ResponseEntity<List<Product>> getProductsByCategoria(@PathVariable String categoria) {
-        List<Product> products = productRepository.findByCategoria(categoria);
-        return new ResponseEntity<>(products, HttpStatus.OK);
+    @GetMapping("/categoria/{categoria}")
+    public ResponseEntity<List<Product>> buscarPorCategoria(@PathVariable String categoria) {
+        return ResponseEntity.ok(productRepository.findByCategoria(categoria));
     }
 
-    @PutMapping("product/{id}")
-    public ResponseEntity<Product> updateProduct(@PathVariable("id") int id, @RequestBody Product productoActualizado) {
+    @PostMapping
+    public ResponseEntity<Product> crear(@RequestBody Product product) {
+        return new ResponseEntity<>(productRepository.save(product), HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Product> actualizar(@PathVariable Integer id, @RequestBody Product productActualizado) {
         return productRepository.findById(id)
-                .map(productoExistente -> {
-                    productoExistente.setNombre(productoActualizado.getNombre());
-                    productoExistente.setCategoria(productoActualizado.getCategoria());
-                    productoExistente.setPrecio(productoActualizado.getPrecio());
-                    productoExistente.setDescripcion(productoActualizado.getDescripcion());
-                    Product updated = productRepository.save(productoExistente);
-                    return new ResponseEntity<>(updated, HttpStatus.OK);
+                .map(existing -> {
+                    existing.setNombre(productActualizado.getNombre());
+                    existing.setCategoria(productActualizado.getCategoria());
+                    existing.setPrecio(productActualizado.getPrecio());
+                    existing.setDescripcion(productActualizado.getDescripcion());
+                    return ResponseEntity.ok(productRepository.save(existing));
                 })
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    @DeleteMapping("product/{id}")
-    public ResponseEntity<Void> deleteProduct(@PathVariable("id") int id) {
-        return productRepository.findById(id)
-                .map(producto -> {
-                    productRepository.delete(producto);
-                    return new ResponseEntity<Void>(HttpStatus.NO_CONTENT);
-                })
-                .orElse(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        if (!productRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        productRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

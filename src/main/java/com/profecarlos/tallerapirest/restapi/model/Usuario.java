@@ -1,32 +1,23 @@
 package com.profecarlos.tallerapirest.restapi.model;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.springframework.hateoas.RepresentationModel;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
-
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
-
 @Entity
-@Table(name = "usuario")
-public class Usuario extends RepresentationModel<Usuario>{
+@Table(name = "usuarios")
+public class Usuario extends RepresentationModel<Usuario> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id_usuario")
     private Integer id;
 
     @NotBlank(message = "El nombre no puede estar vacío")
@@ -44,39 +35,19 @@ public class Usuario extends RepresentationModel<Usuario>{
     @Column(nullable = false)
     private Boolean activo = true;
 
-    @Column(nullable = false, length = 9)
-    private int Telefono;
+    @Column(name = "telefono", nullable = false)
+    private Integer telefono;
 
-    //Relacion con tabla Rol
-    @ManyToOne
-    @JoinColumn(name = "rol_id",nullable = false)
-    private Rol rol;
-
-    //Relacion con tabla Pedido
-    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true,fetch = FetchType.LAZY)
-    @JsonIgnore
-    private List<Pedido> usuario = new ArrayList<>();
-
-    //Relacion con tabla Review
-    @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    @JsonIgnore
-    private List<Review> review = new ArrayList<>();
-
-    //Constructores
     public Usuario() {
-
     }
 
-    public Usuario(Integer id, String nombre, String email, String password, Rol rol, int Telefono) {
+    public Usuario(Integer id, String nombre, String email, String password, Integer telefono) {
         this.id = id;
         this.nombre = nombre;
         this.email = email;
         this.password = password;
-        this.rol = rol;
-        this.Telefono = Telefono; 
+        this.telefono = telefono;
     }
-
-    //Getters & setters
 
     public Integer getId() {
         return id;
@@ -110,30 +81,6 @@ public class Usuario extends RepresentationModel<Usuario>{
         this.password = password;
     }
 
-    public Rol getRol() {
-        return rol;
-    }
-
-    public void setRol(Rol rol) {
-        this.rol = rol;
-    }
-
-    public List<Pedido> getUsuario() {
-        return usuario;
-    }
-
-    public void setUsuario(List<Pedido> usuario) {
-        this.usuario = usuario;
-    }
-
-    public List<Review> getReview() {
-        return review;
-    }
-
-    public void setReview(List<Review> review) {
-        this.review = review;
-    }
-
     public Boolean getActivo() {
         return activo;
     }
@@ -142,13 +89,11 @@ public class Usuario extends RepresentationModel<Usuario>{
         this.activo = activo;
     }
 
-    public int getTelefono() {
-        return Telefono;
+    public Integer getTelefono() {
+        return telefono;
     }
 
-    public void setTelefono(int telefono) {
-        Telefono = telefono;
+    public void setTelefono(Integer telefono) {
+        this.telefono = telefono;
     }
-    
-
 }

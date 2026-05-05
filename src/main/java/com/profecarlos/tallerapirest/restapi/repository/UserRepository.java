@@ -14,7 +14,5 @@ public interface UserRepository extends JpaRepository<Usuario, Integer> {
 
     List<Usuario> findByActivo(Boolean activo);
 
-    List<Usuario> findByRolId(Long rolId); // Corregido aquí
-
     Optional<Usuario> findByEmail(String email); // Para login más adelante
 }

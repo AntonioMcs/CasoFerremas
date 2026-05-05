@@ -1,11 +1,9 @@
 package com.profecarlos.tallerapirest.restapi.model;
 
-import org.springframework.hateoas.RepresentationModel;
-import java.util.HashSet;
-import java.util.Set;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
-//Hecho por Matias Caileo
-//Relaciones hechas por Gustavo Santana
+import org.springframework.hateoas.RepresentationModel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -14,91 +12,55 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.JoinTable;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "pedido")
-public class Pedido extends RepresentationModel<Pedido>{
+@Table(name = "pedidos")
+public class Pedido extends RepresentationModel<Pedido> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
-    
-    @Column(nullable = false)
-    private String nombre;
+    @Column(name = "id_pedido")
+    private Integer idPedido;
 
-    @ManyToOne 
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category categoria;
-
-    @Column(nullable = false)
-    private double precio;
-
-    @Column(length =  1000)
-    private String descripcion;
-    
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "usuario_id",nullable = false)
+    @JoinColumn(name = "id_usuario")
     private Usuario usuario;
 
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(name ="pedido_product", joinColumns = @JoinColumn(name = "pedido_id"),inverseJoinColumns = @JoinColumn(name = "product_id"))
-    private Set<Product> products = new HashSet<>();
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_estado")
+    private EstadoPedido estadoPedido;
 
-    public Pedido(){
+    @Column(name = "fecha_pedido")
+    private LocalDateTime fechaPedido;
 
+    @Column(precision = 10, scale = 2)
+    private BigDecimal total;
+
+    @Column(name = "metodo_pago", length = 50)
+    private String metodoPago;
+
+    @Column(name = "tipo_entrega", length = 50)
+    private String tipoEntrega;
+
+    public Pedido() {
     }
 
-    public Pedido(int id, String nombre, String descripcion, double precio, Category categoria, Usuario usuario) {
-        this.id = id;
-        this.nombre = nombre;
-        this.descripcion = descripcion;
-        this.precio = precio;
-        this.categoria = categoria;
-        this.usuario = usuario;
+    @PrePersist
+    public void prePersist() {
+        if (fechaPedido == null) {
+            fechaPedido = LocalDateTime.now();
+        }
     }
 
-    public int getId() {
-        return id;
+    public Integer getIdPedido() {
+        return idPedido;
     }
 
-    public void setId(int id) {
-        this.id = id;
-    }
-
-    public String getNombre() {
-        return nombre;
-    }
-
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
-    }
-
-    public Category getCategoria() {
-        return categoria;
-    }
-
-    public void setCategoria(Category categoria) {
-        this.categoria = categoria;
-    }
-
-    public double getPrecio() {
-        return precio;
-    }
-
-    public void setPrecio(double precio) {
-        this.precio = precio;
-    }
-
-    public String getDescripcion() {
-        return descripcion;
-    }
-
-    public void setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
+    public void setIdPedido(Integer idPedido) {
+        this.idPedido = idPedido;
     }
 
     public Usuario getUsuario() {
@@ -109,13 +71,43 @@ public class Pedido extends RepresentationModel<Pedido>{
         this.usuario = usuario;
     }
 
-    public Set<Product> getProducts() {
-        return products;
+    public EstadoPedido getEstadoPedido() {
+        return estadoPedido;
     }
 
-    public void setProducts(Set<Product> products) {
-        this.products = products;
+    public void setEstadoPedido(EstadoPedido estadoPedido) {
+        this.estadoPedido = estadoPedido;
     }
 
-    
+    public LocalDateTime getFechaPedido() {
+        return fechaPedido;
+    }
+
+    public void setFechaPedido(LocalDateTime fechaPedido) {
+        this.fechaPedido = fechaPedido;
+    }
+
+    public BigDecimal getTotal() {
+        return total;
+    }
+
+    public void setTotal(BigDecimal total) {
+        this.total = total;
+    }
+
+    public String getMetodoPago() {
+        return metodoPago;
+    }
+
+    public void setMetodoPago(String metodoPago) {
+        this.metodoPago = metodoPago;
+    }
+
+    public String getTipoEntrega() {
+        return tipoEntrega;
+    }
+
+    public void setTipoEntrega(String tipoEntrega) {
+        this.tipoEntrega = tipoEntrega;
+    }
 }

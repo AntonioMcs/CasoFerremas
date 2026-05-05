@@ -1,9 +1,7 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
-//Hecho por Gustavo Santana
+import java.util.List;
 
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,66 +12,53 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import java.util.List;
 
 import com.profecarlos.tallerapirest.restapi.model.Category;
 import com.profecarlos.tallerapirest.restapi.repository.CategoryRepository;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/categories")
 public class CategoryController {
-    
-    @Autowired
-    private CategoryRepository categoryRepository;
 
-    //GET: Listar todo
-    @GetMapping("categories")
-    public ResponseEntity<List<Category>> getAllCategories(){
-        List<Category> category = categoryRepository.findAllByOrderByIdAsc();
-        return new ResponseEntity<>(category, HttpStatus.OK);
+    private final CategoryRepository categoryRepository;
+
+    public CategoryController(CategoryRepository categoryRepository) {
+        this.categoryRepository = categoryRepository;
     }
 
-    //GET: Busqueda por id
-    @GetMapping("category/{id}")
-    public ResponseEntity<Category> getCategoryById(@PathVariable int id){
+    @GetMapping
+    public ResponseEntity<List<Category>> listarTodos() {
+        return ResponseEntity.ok(categoryRepository.findAllByOrderByIdAsc());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Category> buscarPorId(@PathVariable Integer id) {
         return categoryRepository.findById(id)
-        .map(category -> {
-            // Enlace a sí mismo
-            category.add(linkTo(methodOn(CategoryController.class).getCategoryById(id)).withSelfRel());
-            // Enlace a todas las categorías
-            category.add(linkTo(methodOn(CategoryController.class).getAllCategories()).withRel("all-categories"));
-            return new ResponseEntity<>(category, HttpStatus.OK);
-        })
-        .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
-}
-
-    //POST: Creacion de categoria
-    @PostMapping("category/post")
-    public ResponseEntity<Category>insertCategory(@RequestBody Category category){
-        Category savedCategory = categoryRepository.save(category);
-        return new ResponseEntity<>(savedCategory, HttpStatus.OK);
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    //PUT: Actualizar una categoria
-    @PutMapping("updCategory/{id}")
-    public ResponseEntity<Category> updateCategory(@PathVariable("id") int id,@RequestBody Category categoryUpdated){
-            return categoryRepository.findById(id)
-            .map(categoryExistent -> {
-                categoryExistent.setNombre(categoryUpdated.getNombre());
-                Category updated = categoryRepository.save(categoryExistent);
-                return new ResponseEntity<>(updated,HttpStatus.OK);
-
-            }).orElse( new ResponseEntity<>(HttpStatus.NOT_FOUND));
+    @PostMapping
+    public ResponseEntity<Category> crear(@RequestBody Category category) {
+        return new ResponseEntity<>(categoryRepository.save(category), HttpStatus.CREATED);
     }
 
-    //DELETE: Eliminar una categoria
-    @DeleteMapping("DelCategory/{id}")
-    public ResponseEntity<Void> deleteCategory(@PathVariable("id") int id){
-        if (categoryRepository.existsById(id)){
-            categoryRepository.deleteById(id);
-            return new ResponseEntity<Void>(HttpStatus.NO_CONTENT);
-        }else{
-            return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+    @PutMapping("/{id}")
+    public ResponseEntity<Category> actualizar(@PathVariable Integer id, @RequestBody Category categoryActualizada) {
+        return categoryRepository.findById(id)
+                .map(existing -> {
+                    existing.setNombre(categoryActualizada.getNombre());
+                    return ResponseEntity.ok(categoryRepository.save(existing));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        if (!categoryRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
         }
+        categoryRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

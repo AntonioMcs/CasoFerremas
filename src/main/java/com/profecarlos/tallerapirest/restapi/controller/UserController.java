@@ -1,143 +1,78 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
+import java.util.List;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.profecarlos.tallerapirest.restapi.model.Usuario;
 import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.hateoas.EntityModel;
-import org.springframework.hateoas.CollectionModel;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-import java.util.List;
-import java.util.Optional;
-import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.*;
 
 @RestController
-@RequestMapping("/api/usuarios")
+@RequestMapping("/api/v1/usuarios")
 public class UserController {
-    @Autowired
-    private UserRepository userRepository;
-       // GET /api/usuarios - Obtener todos los usuarios
+
+    private final UserRepository userRepository;
+
+    public UserController(UserRepository userRepository) {
+        this.userRepository = userRepository;
+    }
+
     @GetMapping
-    public CollectionModel<EntityModel<Usuario>> obtenerTodosLosUsuarios() {
-        List<Usuario> usuarios = userRepository.findAll();
-        List<EntityModel<Usuario>> usuariosConLinks = usuarios.stream()
-                .map(this::agregarLinksAUsuario)
-                .toList();
-        return CollectionModel.of(usuariosConLinks)
-                .add(linkTo(methodOn(UserController.class).obtenerTodosLosUsuarios()).withSelfRel())
-                .add(linkTo(methodOn(UserController.class).crearUsuario(null)).withRel("crearusuario"))
-                .add(linkTo(methodOn(UserController.class).obtenerUsuariosActivos()).withRel("usuarioactivos"))
-                .add(linkTo(methodOn(UserController.class).obtenerUsuariosInactivos()).withRel("usuarioinactivos"));
+    public ResponseEntity<List<Usuario>> listarTodos() {
+        return ResponseEntity.ok(userRepository.findAll());
     }
-    
-    // GET /api/usuarios/activos - Obtener usuarios activos
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Usuario> buscarPorId(@PathVariable Integer id) {
+        return userRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
     @GetMapping("/activos")
-    public CollectionModel<EntityModel<Usuario>> obtenerUsuariosActivos() {
-        List<Usuario> usuarios = userRepository.findByActivo(true);
-        List<EntityModel<Usuario>> usuariosConLinks = usuarios.stream()
-                .map(this::agregarLinksAUsuario)
-                .toList();
-        return CollectionModel.of(usuariosConLinks)
-                .add(linkTo(methodOn(UserController.class).obtenerUsuariosActivos()).withSelfRel())
-                .add(linkTo(methodOn(UserController.class).obtenerTodosLosUsuarios()).withRel("todoslos-usuarios"));
+    public ResponseEntity<List<Usuario>> listarActivos() {
+        return ResponseEntity.ok(userRepository.findByActivo(true));
     }
-    // GET /api/usuarios/inactivos - Obtener usuarios inactivos
+
     @GetMapping("/inactivos")
-    public CollectionModel<EntityModel<Usuario>> obtenerUsuariosInactivos() {
-        List<Usuario> usuarios = userRepository.findByActivo(false);
-        List<EntityModel<Usuario>> usuariosConLinks = usuarios.stream()
-                .map(this::agregarLinksAUsuario)
-                .toList();
-        return CollectionModel.of(usuariosConLinks)
-                .add(linkTo(methodOn(UserController.class).obtenerUsuariosInactivos()).withSelfRel())
-                .add(linkTo(methodOn(UserController.class).obtenerTodosLosUsuarios()).withRel("todoslos-usuarios"));
+    public ResponseEntity<List<Usuario>> listarInactivos() {
+        return ResponseEntity.ok(userRepository.findByActivo(false));
     }
 
-    public CollectionModel<EntityModel<Usuario>> obtenerUsuariosPorRol(@PathVariable Long rolId) {
-        List<Usuario> usuarios = userRepository.findByRolId(rolId);
-        List<EntityModel<Usuario>> usuariosConLinks = usuarios.stream()
-        .map(this::agregarLinksAUsuario).toList();
-        return CollectionModel.of(usuariosConLinks)
-            .add(linkTo(methodOn(UserController.class).obtenerUsuariosPorRol(rolId)).withSelfRel())
-            .add(linkTo(methodOn(UserController.class).obtenerTodosLosUsuarios()).withRel("todoslos-usuarios"));
+    @PostMapping
+    public ResponseEntity<Usuario> crear(@RequestBody Usuario usuario) {
+        return new ResponseEntity<>(userRepository.save(usuario), HttpStatus.CREATED);
     }
 
-    public ResponseEntity<EntityModel<Usuario>> crearUsuario(@RequestBody Usuario usuario) {
-        // Validar email único
-        Optional<Usuario> usuarioExistente = userRepository.findByEmail(usuario.getEmail());
-        if (usuarioExistente.isPresent()) {
-            return ResponseEntity.badRequest().build();
-        }
-        Usuario usuarioGuardado = userRepository.save(usuario);
-        return ResponseEntity.ok(agregarLinksAUsuario(usuarioGuardado));
-    }
-        
-    // PUT /api/usuarios/{id} - Actualizar usuario
     @PutMapping("/{id}")
-    public ResponseEntity<EntityModel<Usuario>> actualizarUsuario(@PathVariable Integer id, @RequestBody Usuario usuarioActualizado) {
-        Optional<Usuario> usuarioExistente = userRepository.findById(id);
-        if (usuarioExistente.isPresent()) {
-            Usuario usuario = usuarioExistente.get();
-            // Validar email único si se está cambiando
-            if (!usuario.getEmail().equals(usuarioActualizado.getEmail())) {
-                Optional<Usuario> usuarioConEmail = userRepository.findByEmail(usuarioActualizado.getEmail());
-                if (usuarioConEmail.isPresent()) {
-                    return ResponseEntity.badRequest().build();
-                }
-            }
-            usuario.setNombre(usuarioActualizado.getNombre());
-            usuario.setEmail(usuarioActualizado.getEmail());
-            usuario.setTelefono(usuarioActualizado.getTelefono());
-            usuario.setRol(usuarioActualizado.getRol());
-            Usuario usuarioGuardado = userRepository.save(usuario);
-            return ResponseEntity.ok(agregarLinksAUsuario(usuarioGuardado));
-        }
-        return ResponseEntity.notFound().build();
-    }
-    
-    // PUT /api/usuarios/{id}/desactivar - Desactivar usuario (soft delete)
-    @PutMapping("/{id}/desactivar")
-    public ResponseEntity<EntityModel<Usuario>> desactivarUsuario(@PathVariable Integer id) {
-        Optional<Usuario> usuarioExistente = userRepository.findById(id);
-        if (usuarioExistente.isPresent()) {
-            Usuario usuario = usuarioExistente.get();
-            usuario.setActivo(false);
-            Usuario usuarioGuardado = userRepository.save(usuario);
-            return ResponseEntity.ok(agregarLinksAUsuario(usuarioGuardado));
-        }
-        return ResponseEntity.notFound().build();
+    public ResponseEntity<Usuario> actualizar(@PathVariable Integer id, @RequestBody Usuario usuarioActualizado) {
+        return userRepository.findById(id)
+                .map(existing -> {
+                    existing.setNombre(usuarioActualizado.getNombre());
+                    existing.setEmail(usuarioActualizado.getEmail());
+                    existing.setPassword(usuarioActualizado.getPassword());
+                    existing.setTelefono(usuarioActualizado.getTelefono());
+                    existing.setActivo(usuarioActualizado.getActivo());
+                    return ResponseEntity.ok(userRepository.save(existing));
+                })
+                .orElse(ResponseEntity.notFound().build());
     }
 
-    // PUT /api/usuarios/{id}/activar - Activar usuario
-    @PutMapping("/{id}/activar")
-    public ResponseEntity<EntityModel<Usuario>> activarUsuario(@PathVariable Integer id) {
-        Optional<Usuario> usuarioExistente = userRepository.findById(id);
-        if (usuarioExistente.isPresent()) {
-            Usuario usuario = usuarioExistente.get();
-            usuario.setActivo(true);
-            Usuario usuarioGuardado = userRepository.save(usuario);
-            return ResponseEntity.ok(agregarLinksAUsuario(usuarioGuardado));
-        }
-        return ResponseEntity.notFound().build();
-    }
-
-    // DELETE /api/usuarios/{id} - Eliminar usuario completamente
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminarUsuario(@PathVariable Integer id) {
-        if (userRepository.existsById(id)) {
-            userRepository.deleteById(id);
-            return ResponseEntity.ok()
-                    .header("mensaje", "Usuario eliminado exitosamente")
-                    .build();
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        if (!userRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.notFound().build();
-    }
-    
-    // Método auxiliar para agregar enlaces HATEOAS
-    private EntityModel<Usuario> agregarLinksAUsuario(Usuario usuario) {
-        return EntityModel.of(usuario)
-            .add(linkTo(methodOn(UserController.class).obtenerUsuariosPorRol(usuario.getId().longValue())).withSelfRel())
-            .add(linkTo(methodOn(UserController.class).obtenerTodosLosUsuarios()).withRel("todoslos-usuarios"))
-            .add(linkTo(methodOn(UserController.class).actualizarUsuario(usuario.getId(), null)).withRel("actualizar"));
+        userRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
     }
 }

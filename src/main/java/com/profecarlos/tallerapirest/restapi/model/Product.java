@@ -1,49 +1,41 @@
 package com.profecarlos.tallerapirest.restapi.model;
 
-import java.util.HashSet;
-import java.util.Set;
-import org.springframework.hateoas.RepresentationModel;
+import java.math.BigDecimal;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import org.springframework.hateoas.RepresentationModel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "products")
-public class Product extends RepresentationModel<Product>{
+@Table(name = "productos")
+public class Product extends RepresentationModel<Product> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private int id;
-    
+    @Column(name = "id_producto")
+    private Integer id;
+
     @Column(nullable = false)
     private String nombre;
 
     @Column(nullable = false)
     private String categoria;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal precio;
 
-    private double precio;
-
-    @Column(length =  1000)
+    @Column(length = 1000)
     private String descripcion;
 
-    @ManyToMany(mappedBy = "products")
-    @JsonIgnore
-    private Set<Pedido> pedidos = new HashSet<>();
-
-    public Product(){
-
+    public Product() {
     }
 
-    public Product(int id, String nombre, String descripcion, double precio, String categoria) {
+    public Product(Integer id, String nombre, String descripcion, BigDecimal precio, String categoria) {
         this.id = id;
         this.nombre = nombre;
         this.descripcion = descripcion;
@@ -51,11 +43,11 @@ public class Product extends RepresentationModel<Product>{
         this.categoria = categoria;
     }
 
-    public int getId() {
+    public Integer getId() {
         return id;
     }
 
-    public void setId(int id) {
+    public void setId(Integer id) {
         this.id = id;
     }
 
@@ -75,11 +67,11 @@ public class Product extends RepresentationModel<Product>{
         this.categoria = categoria;
     }
 
-    public double getPrecio() {
+    public BigDecimal getPrecio() {
         return precio;
     }
 
-    public void setPrecio(double precio) {
+    public void setPrecio(BigDecimal precio) {
         this.precio = precio;
     }
 
@@ -90,5 +82,4 @@ public class Product extends RepresentationModel<Product>{
     public void setDescripcion(String descripcion) {
         this.descripcion = descripcion;
     }
-
 }
