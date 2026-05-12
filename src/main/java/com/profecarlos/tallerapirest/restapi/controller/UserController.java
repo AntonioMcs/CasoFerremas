@@ -15,6 +15,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.profecarlos.tallerapirest.restapi.model.Usuario;
 import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
+import com.profecarlos.tallerapirest.restapi.dto.UsuarioDTO;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/api/v1/usuarios")
@@ -38,30 +40,26 @@ public class UserController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/activos")
-    public ResponseEntity<List<Usuario>> listarActivos() {
-        return ResponseEntity.ok(userRepository.findByActivo(true));
-    }
-
-    @GetMapping("/inactivos")
-    public ResponseEntity<List<Usuario>> listarInactivos() {
-        return ResponseEntity.ok(userRepository.findByActivo(false));
+    @GetMapping("/tipo/{tipoUsuario}")
+    public ResponseEntity<List<Usuario>> listarPorTipo(@PathVariable String tipoUsuario) {
+        return ResponseEntity.ok(userRepository.findByTipoUsuario(tipoUsuario));
     }
 
     @PostMapping
-    public ResponseEntity<Usuario> crear(@RequestBody Usuario usuario) {
+    public ResponseEntity<Usuario> crear(@Valid @RequestBody UsuarioDTO usuarioDTO) {
+        Usuario usuario = new Usuario(null, usuarioDTO.getNombre(), usuarioDTO.getEmail(), 
+                usuarioDTO.getContrasena(), usuarioDTO.getTipoUsuario());
         return new ResponseEntity<>(userRepository.save(usuario), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Usuario> actualizar(@PathVariable Integer id, @RequestBody Usuario usuarioActualizado) {
+    public ResponseEntity<Usuario> actualizar(@PathVariable Integer id, @Valid @RequestBody UsuarioDTO usuarioDTO) {
         return userRepository.findById(id)
                 .map(existing -> {
-                    existing.setNombre(usuarioActualizado.getNombre());
-                    existing.setEmail(usuarioActualizado.getEmail());
-                    existing.setPassword(usuarioActualizado.getPassword());
-                    existing.setTelefono(usuarioActualizado.getTelefono());
-                    existing.setActivo(usuarioActualizado.getActivo());
+                    existing.setNombre(usuarioDTO.getNombre());
+                    existing.setEmail(usuarioDTO.getEmail());
+                    existing.setContrasena(usuarioDTO.getContrasena());
+                    existing.setTipoUsuario(usuarioDTO.getTipoUsuario());
                     return ResponseEntity.ok(userRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

@@ -1,15 +1,22 @@
 package com.profecarlos.tallerapirest.restapi.model;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 import org.springframework.hateoas.RepresentationModel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 @Entity
 @Table(name = "productos")
@@ -20,27 +27,56 @@ public class Product extends RepresentationModel<Product> {
     @Column(name = "id_producto")
     private Integer id;
 
-    @Column(nullable = false)
-    private String nombre;
+    @NotBlank(message = "El nombre del producto no puede estar vacío")
+    @Column(name = "nombre_producto", nullable = false)
+    private String nombreProducto;
 
-    @Column(nullable = false)
-    private String categoria;
-
-    @Column(nullable = false, precision = 10, scale = 2)
-    private BigDecimal precio;
+    @Column(name = "marca", length = 100)
+    private String marca;
 
     @Column(length = 1000)
     private String descripcion;
 
+    @NotNull(message = "El precio no puede estar vacío")
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal precio;
+
+    @Column(name = "stock")
+    private Integer stock = 0;
+
+    @Column(name = "unidad_medida", length = 50)
+    private String unidadMedida;
+
+    @Column(name = "codigo_sku", unique = true, length = 100)
+    private String codigoSku;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_categoria")
+    private Categoria categoria;
+
+    @Column(name = "fecha_registro")
+    private LocalDateTime fechaRegistro;
+
     public Product() {
     }
 
-    public Product(Integer id, String nombre, String descripcion, BigDecimal precio, String categoria) {
+    public Product(Integer id, String nombreProducto, String marca, String descripcion, BigDecimal precio, String unidadMedida) {
         this.id = id;
-        this.nombre = nombre;
+        this.nombreProducto = nombreProducto;
+        this.marca = marca;
         this.descripcion = descripcion;
         this.precio = precio;
-        this.categoria = categoria;
+        this.unidadMedida = unidadMedida;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (fechaRegistro == null) {
+            fechaRegistro = LocalDateTime.now();
+        }
+        if (stock == null) {
+            stock = 0;
+        }
     }
 
     public Integer getId() {
@@ -51,20 +87,28 @@ public class Product extends RepresentationModel<Product> {
         this.id = id;
     }
 
-    public String getNombre() {
-        return nombre;
+    public String getNombreProducto() {
+        return nombreProducto;
     }
 
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
+    public void setNombreProducto(String nombreProducto) {
+        this.nombreProducto = nombreProducto;
     }
 
-    public String getCategoria() {
-        return categoria;
+    public String getMarca() {
+        return marca;
     }
 
-    public void setCategoria(String categoria) {
-        this.categoria = categoria;
+    public void setMarca(String marca) {
+        this.marca = marca;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
     }
 
     public BigDecimal getPrecio() {
@@ -75,11 +119,43 @@ public class Product extends RepresentationModel<Product> {
         this.precio = precio;
     }
 
-    public String getDescripcion() {
-        return descripcion;
+    public Integer getStock() {
+        return stock;
     }
 
-    public void setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
+    public void setStock(Integer stock) {
+        this.stock = stock;
+    }
+
+    public String getUnidadMedida() {
+        return unidadMedida;
+    }
+
+    public void setUnidadMedida(String unidadMedida) {
+        this.unidadMedida = unidadMedida;
+    }
+
+    public String getCodigoSku() {
+        return codigoSku;
+    }
+
+    public void setCodigoSku(String codigoSku) {
+        this.codigoSku = codigoSku;
+    }
+
+    public Categoria getCategoria() {
+        return categoria;
+    }
+
+    public void setCategoria(Categoria categoria) {
+        this.categoria = categoria;
+    }
+
+    public LocalDateTime getFechaRegistro() {
+        return fechaRegistro;
+    }
+
+    public void setFechaRegistro(LocalDateTime fechaRegistro) {
+        this.fechaRegistro = fechaRegistro;
     }
 }

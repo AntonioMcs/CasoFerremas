@@ -1,5 +1,7 @@
 package com.profecarlos.tallerapirest.restapi.model;
 
+import java.time.LocalDateTime;
+
 import org.springframework.hateoas.RepresentationModel;
 
 import jakarta.persistence.Column;
@@ -7,6 +9,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -30,23 +33,31 @@ public class Usuario extends RepresentationModel<Usuario> {
 
     @NotBlank(message = "La contraseña no puede estar vacía")
     @Column(nullable = false)
-    private String password;
+    private String contrasena;
 
-    @Column(nullable = false)
-    private Boolean activo = true;
+    @NotBlank(message = "El tipo de usuario no puede estar vacío")
+    @Column(name = "tipo_usuario", nullable = false, length = 50)
+    private String tipoUsuario;
 
-    @Column(name = "telefono", nullable = false)
-    private Integer telefono;
+    @Column(name = "fecha_registro")
+    private LocalDateTime fechaRegistro;
 
     public Usuario() {
     }
 
-    public Usuario(Integer id, String nombre, String email, String password, Integer telefono) {
+    public Usuario(Integer id, String nombre, String email, String contrasena, String tipoUsuario) {
         this.id = id;
         this.nombre = nombre;
         this.email = email;
-        this.password = password;
-        this.telefono = telefono;
+        this.contrasena = contrasena;
+        this.tipoUsuario = tipoUsuario;
+    }
+
+    @PrePersist
+    public void prePersist() {
+        if (fechaRegistro == null) {
+            fechaRegistro = LocalDateTime.now();
+        }
     }
 
     public Integer getId() {
@@ -73,27 +84,27 @@ public class Usuario extends RepresentationModel<Usuario> {
         this.email = email;
     }
 
-    public String getPassword() {
-        return password;
+    public String getContrasena() {
+        return contrasena;
     }
 
-    public void setPassword(String password) {
-        this.password = password;
+    public void setContrasena(String contrasena) {
+        this.contrasena = contrasena;
     }
 
-    public Boolean getActivo() {
-        return activo;
+    public String getTipoUsuario() {
+        return tipoUsuario;
     }
 
-    public void setActivo(Boolean activo) {
-        this.activo = activo;
+    public void setTipoUsuario(String tipoUsuario) {
+        this.tipoUsuario = tipoUsuario;
     }
 
-    public Integer getTelefono() {
-        return telefono;
+    public LocalDateTime getFechaRegistro() {
+        return fechaRegistro;
     }
 
-    public void setTelefono(Integer telefono) {
-        this.telefono = telefono;
+    public void setFechaRegistro(LocalDateTime fechaRegistro) {
+        this.fechaRegistro = fechaRegistro;
     }
 }

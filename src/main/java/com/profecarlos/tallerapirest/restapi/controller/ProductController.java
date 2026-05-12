@@ -14,16 +14,22 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.profecarlos.tallerapirest.restapi.model.Product;
+import com.profecarlos.tallerapirest.restapi.model.Categoria;
 import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
+import com.profecarlos.tallerapirest.restapi.repository.CategoriaRepository;
+import com.profecarlos.tallerapirest.restapi.dto.ProductDTO;
+import jakarta.validation.Valid;
 
 @RestController
-@RequestMapping("/api/v1/products")
+@RequestMapping("/api/v1/productos")
 public class ProductController {
 
     private final ProductRepository productRepository;
+    private final CategoriaRepository categoriaRepository;
 
-    public ProductController(ProductRepository productRepository) {
+    public ProductController(ProductRepository productRepository, CategoriaRepository categoriaRepository) {
         this.productRepository = productRepository;
+        this.categoriaRepository = categoriaRepository;
     }
 
     @GetMapping
@@ -38,24 +44,37 @@ public class ProductController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
-    @GetMapping("/categoria/{categoria}")
-    public ResponseEntity<List<Product>> buscarPorCategoria(@PathVariable String categoria) {
-        return ResponseEntity.ok(productRepository.findByCategoria(categoria));
-    }
-
     @PostMapping
-    public ResponseEntity<Product> crear(@RequestBody Product product) {
+    public ResponseEntity<Product> crear(@Valid @RequestBody ProductDTO productDTO) {
+        Categoria categoria = null;
+        if (productDTO.getCategoriaId() != null) {
+            categoria = categoriaRepository.findById(productDTO.getCategoriaId())
+                    .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
+        }
+        Product product = new Product(null, productDTO.getNombreProducto(), productDTO.getMarca(), 
+                productDTO.getDescripcion(), productDTO.getPrecio(), productDTO.getUnidadMedida());
+        product.setStock(productDTO.getStock());
+        product.setCodigoSku(productDTO.getCodigoSku());
+        product.setCategoria(categoria);
         return new ResponseEntity<>(productRepository.save(product), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Product> actualizar(@PathVariable Integer id, @RequestBody Product productActualizado) {
+    public ResponseEntity<Product> actualizar(@PathVariable Integer id, @Valid @RequestBody ProductDTO productDTO) {
         return productRepository.findById(id)
                 .map(existing -> {
-                    existing.setNombre(productActualizado.getNombre());
-                    existing.setCategoria(productActualizado.getCategoria());
-                    existing.setPrecio(productActualizado.getPrecio());
-                    existing.setDescripcion(productActualizado.getDescripcion());
+                    existing.setNombreProducto(productDTO.getNombreProducto());
+                    existing.setMarca(productDTO.getMarca());
+                    existing.setPrecio(productDTO.getPrecio());
+                    existing.setDescripcion(productDTO.getDescripcion());
+                    existing.setStock(productDTO.getStock());
+                    existing.setUnidadMedida(productDTO.getUnidadMedida());
+                    existing.setCodigoSku(productDTO.getCodigoSku());
+                    if (productDTO.getCategoriaId() != null) {
+                        Categoria categoria = categoriaRepository.findById(productDTO.getCategoriaId())
+                                .orElseThrow(() -> new RuntimeException("Categoría no encontrada"));
+                        existing.setCategoria(categoria);
+                    }
                     return ResponseEntity.ok(productRepository.save(existing));
                 })
                 .orElse(ResponseEntity.notFound().build());

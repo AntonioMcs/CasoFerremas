@@ -5,16 +5,15 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import com.profecarlos.tallerapirest.restapi.model.Product;
+import com.profecarlos.tallerapirest.restapi.model.Categoria;
 
 public interface ProductRepository extends JpaRepository<Product, Integer>{
     
+    // Buscar productos por categoría
+    // SELECT * FROM productos WHERE id_categoria = :categoria
+    List<Product> findByCategoria(Categoria categoria);
 
-    // Este metodo no es de JPA, si no uno personalizado creado por nosotros
-    // Esto parece magia, pero es gracias a que JPA trabaja por convencion de nombres
-    // Lo de abajo en el fondo, hace que JPA haga algo como esto
-    // SELECT * FROM product WHERE categoria = :categoria
-    // Pero ojo, que si voy a trabajar de esta manera, es obligatorio que mi modelo tenga dicho atributo (categoria en este caso)
-
-
-    List<Product> findByCategoria(String categoria);
+    // Buscar productos por nombre (búsqueda parcial)
+    List<Product> findByNombreProductoContainingIgnoreCase(String nombreProducto);
 }
+
