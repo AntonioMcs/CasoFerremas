@@ -47,8 +47,8 @@ Paquetes principales:
 Entidades principales del caso FERREMAS:
 
 - Usuario
-- Product
-- Category
+- Producto
+- Categoria
 - Pedido
 - EstadoPedido
 - DetallePedido
@@ -62,7 +62,7 @@ Tablas principales consideradas en el proyecto:
 
 - usuarios
 - productos
-- category
+- categoria
 - pedidos
 - estados_pedido
 - detalle_pedido
@@ -90,8 +90,8 @@ Base URL local:
 Rutas CRUD implementadas (resumen):
 
 - /api/v1/usuarios
-- /api/v1/products
-- /api/v1/categories
+- /api/v1/producto
+- /api/v1/categoria
 - /api/v1/pedidos
 - /api/v1/estados-pedido
 - /api/v1/detalle-pedidos
@@ -226,17 +226,3 @@ En esta version del caso FERREMAS ya se encuentra:
 - Repositories JPA creados
 - Controladores REST para operaciones CRUD base
 
-Pendientes recomendados para una siguiente iteracion:
-
-- Capa Service en todos los dominios
-- Manejo de errores global con @ControllerAdvice
-- Pruebas unitarias e integracion por endpoint
-- Documentacion de payloads por recurso
-
-## 15. Integrantes
-
-Completar con datos reales del equipo:
-
-- Integrante 1: Nombre - Microservicio asignado
-- Integrante 2: Nombre - Microservicio asignado
-- Integrante 3: Nombre - Microservicio asignado
