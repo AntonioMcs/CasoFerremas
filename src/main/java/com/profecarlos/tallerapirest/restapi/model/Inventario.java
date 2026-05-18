@@ -9,6 +9,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
@@ -25,6 +26,10 @@ public class Inventario extends RepresentationModel<Inventario> {
     @OneToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_producto", unique = true)
     private Product producto;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_proveedor")
+    private Proveedor proveedor;
 
     @NotNull(message = "El stock actual no puede estar vacío")
     @Column(name = "stock_actual", nullable = false)
@@ -61,6 +66,14 @@ public class Inventario extends RepresentationModel<Inventario> {
 
     public void setProducto(Product producto) {
         this.producto = producto;
+    }
+
+    public Proveedor getProveedor() {
+        return proveedor;
+    }
+
+    public void setProveedor(Proveedor proveedor) {
+        this.proveedor = proveedor;
     }
 
     public Integer getStockActual() {

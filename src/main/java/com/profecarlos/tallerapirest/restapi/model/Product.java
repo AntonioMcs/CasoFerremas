@@ -54,6 +54,10 @@ public class Product extends RepresentationModel<Product> {
     @JoinColumn(name = "id_categoria")
     private Categoria categoria;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_proveedor")
+    private Proveedor proveedor;
+
     @Column(name = "fecha_registro")
     private LocalDateTime fechaRegistro;
 
@@ -149,6 +153,14 @@ public class Product extends RepresentationModel<Product> {
 
     public void setCategoria(Categoria categoria) {
         this.categoria = categoria;
+    }
+
+    public Proveedor getProveedor() {
+        return proveedor;
+    }
+
+    public void setProveedor(Proveedor proveedor) {
+        this.proveedor = proveedor;
     }
 
     public LocalDateTime getFechaRegistro() {

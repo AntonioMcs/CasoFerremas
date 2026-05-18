@@ -25,6 +25,8 @@ public class ProductDTO {
 
     private Integer categoriaId;
 
+    private Integer proveedorId;
+
     public ProductDTO() {
     }
 
@@ -37,6 +39,18 @@ public class ProductDTO {
         this.unidadMedida = unidadMedida;
         this.codigoSku = codigoSku;
         this.categoriaId = categoriaId;
+    }
+
+    public ProductDTO(String nombreProducto, String marca, String descripcion, BigDecimal precio, Integer stock, String unidadMedida, String codigoSku, Integer categoriaId, Integer proveedorId) {
+        this.nombreProducto = nombreProducto;
+        this.marca = marca;
+        this.descripcion = descripcion;
+        this.precio = precio;
+        this.stock = stock;
+        this.unidadMedida = unidadMedida;
+        this.codigoSku = codigoSku;
+        this.categoriaId = categoriaId;
+        this.proveedorId = proveedorId;
     }
 
     public String getNombreProducto() {
@@ -101,5 +115,13 @@ public class ProductDTO {
 
     public void setCategoriaId(Integer categoriaId) {
         this.categoriaId = categoriaId;
+    }
+
+    public Integer getProveedorId() {
+        return proveedorId;
+    }
+
+    public void setProveedorId(Integer proveedorId) {
+        this.proveedorId = proveedorId;
     }
 }

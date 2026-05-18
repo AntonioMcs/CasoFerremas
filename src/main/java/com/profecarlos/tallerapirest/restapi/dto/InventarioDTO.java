@@ -14,6 +14,8 @@ public class InventarioDTO {
 
     private String ubicacionBodega;
 
+    private Integer proveedorId;
+
     public InventarioDTO() {
     }
 
@@ -22,6 +24,14 @@ public class InventarioDTO {
         this.stockActual = stockActual;
         this.stockMinimo = stockMinimo;
         this.ubicacionBodega = ubicacionBodega;
+    }
+
+    public InventarioDTO(Integer productoId, Integer stockActual, Integer stockMinimo, String ubicacionBodega, Integer proveedorId) {
+        this.productoId = productoId;
+        this.stockActual = stockActual;
+        this.stockMinimo = stockMinimo;
+        this.ubicacionBodega = ubicacionBodega;
+        this.proveedorId = proveedorId;
     }
 
     public Integer getProductoId() {
@@ -54,5 +64,13 @@ public class InventarioDTO {
 
     public void setUbicacionBodega(String ubicacionBodega) {
         this.ubicacionBodega = ubicacionBodega;
+    }
+
+    public Integer getProveedorId() {
+        return proveedorId;
+    }
+
+    public void setProveedorId(Integer proveedorId) {
+        this.proveedorId = proveedorId;
     }
 }
