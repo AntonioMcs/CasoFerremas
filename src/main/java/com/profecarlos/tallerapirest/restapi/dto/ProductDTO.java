@@ -17,8 +17,6 @@ public class ProductDTO {
     @NotNull(message = "El precio no puede estar vacío")
     private BigDecimal precio;
 
-    private Integer stock = 0;
-
     private String unidadMedida;
 
     private String codigoSku;
@@ -30,23 +28,21 @@ public class ProductDTO {
     public ProductDTO() {
     }
 
-    public ProductDTO(String nombreProducto, String marca, String descripcion, BigDecimal precio, Integer stock, String unidadMedida, String codigoSku, Integer categoriaId) {
+    public ProductDTO(String nombreProducto, String marca, String descripcion, BigDecimal precio, String unidadMedida, String codigoSku, Integer categoriaId) {
         this.nombreProducto = nombreProducto;
         this.marca = marca;
         this.descripcion = descripcion;
         this.precio = precio;
-        this.stock = stock;
         this.unidadMedida = unidadMedida;
         this.codigoSku = codigoSku;
         this.categoriaId = categoriaId;
     }
 
-    public ProductDTO(String nombreProducto, String marca, String descripcion, BigDecimal precio, Integer stock, String unidadMedida, String codigoSku, Integer categoriaId, Integer proveedorId) {
+    public ProductDTO(String nombreProducto, String marca, String descripcion, BigDecimal precio, String unidadMedida, String codigoSku, Integer categoriaId, Integer proveedorId) {
         this.nombreProducto = nombreProducto;
         this.marca = marca;
         this.descripcion = descripcion;
         this.precio = precio;
-        this.stock = stock;
         this.unidadMedida = unidadMedida;
         this.codigoSku = codigoSku;
         this.categoriaId = categoriaId;
@@ -83,14 +79,6 @@ public class ProductDTO {
 
     public void setPrecio(BigDecimal precio) {
         this.precio = precio;
-    }
-
-    public Integer getStock() {
-        return stock;
-    }
-
-    public void setStock(Integer stock) {
-        this.stock = stock;
     }
 
     public String getUnidadMedida() {

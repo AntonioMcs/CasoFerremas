@@ -41,9 +41,6 @@ public class Product extends RepresentationModel<Product> {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal precio;
 
-    @Column(name = "stock")
-    private Integer stock = 0;
-
     @Column(name = "unidad_medida", length = 50)
     private String unidadMedida;
 
@@ -77,9 +74,6 @@ public class Product extends RepresentationModel<Product> {
     public void prePersist() {
         if (fechaRegistro == null) {
             fechaRegistro = LocalDateTime.now();
-        }
-        if (stock == null) {
-            stock = 0;
         }
     }
 
@@ -121,14 +115,6 @@ public class Product extends RepresentationModel<Product> {
 
     public void setPrecio(BigDecimal precio) {
         this.precio = precio;
-    }
-
-    public Integer getStock() {
-        return stock;
-    }
-
-    public void setStock(Integer stock) {
-        this.stock = stock;
     }
 
     public String getUnidadMedida() {

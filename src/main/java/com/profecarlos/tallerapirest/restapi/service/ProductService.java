@@ -46,7 +46,6 @@ public class ProductService {
     public Product crear(ProductDTO dto) {
         Product product = new Product(null, dto.getNombreProducto(), dto.getMarca(), dto.getDescripcion(),
                 dto.getPrecio(), dto.getUnidadMedida());
-        product.setStock(dto.getStock() != null ? dto.getStock() : 0);
         product.setCodigoSku(dto.getCodigoSku());
 
         if (dto.getCategoriaId() != null) {
@@ -79,9 +78,6 @@ public class ProductService {
         }
         if (dto.getPrecio() != null) {
             existing.setPrecio(dto.getPrecio());
-        }
-        if (dto.getStock() != null) {
-            existing.setStock(dto.getStock());
         }
         if (dto.getUnidadMedida() != null) {
             existing.setUnidadMedida(dto.getUnidadMedida());

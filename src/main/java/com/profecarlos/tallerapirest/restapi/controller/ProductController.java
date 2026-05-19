@@ -101,7 +101,6 @@ public class ProductController {
 
             Product product = new Product(null, productDTO.getNombreProducto(), productDTO.getMarca(), 
                     productDTO.getDescripcion(), productDTO.getPrecio(), productDTO.getUnidadMedida());
-            product.setStock(productDTO.getStock() != null ? productDTO.getStock() : 0);
             product.setCodigoSku(productDTO.getCodigoSku());
             product.setCategoria(categoria);
             product.setProveedor(proveedor);
@@ -139,9 +138,6 @@ public class ProductController {
                     }
                     if (productDTO.getDescripcion() != null) {
                         existing.setDescripcion(productDTO.getDescripcion());
-                    }
-                    if (productDTO.getStock() != null) {
-                        existing.setStock(productDTO.getStock());
                     }
                     if (productDTO.getUnidadMedida() != null) {
                         existing.setUnidadMedida(productDTO.getUnidadMedida());

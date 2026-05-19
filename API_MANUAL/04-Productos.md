@@ -21,7 +21,6 @@ Base path: `/api/v1/productos`
   "marca": "MarcaX",
   "descripcion": "Taladro 500W",
   "precio": 129990,
-  "stock": 10,
   "unidadMedida": "unidad",
   "codigoSku": "TAL-500",
   "categoriaId": 1,
@@ -37,7 +36,6 @@ Base path: `/api/v1/productos`
 ```json
 {
   "precio": 119990,
-  "stock": 15,
   "proveedorId": 3
 }
 ```
