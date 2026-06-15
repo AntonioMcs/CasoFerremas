@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.profecarlos.tallerapirest.restapi.dto.InventarioResponseDTO;
 import com.profecarlos.tallerapirest.restapi.model.Inventario;
 import com.profecarlos.tallerapirest.restapi.model.Product;
 import com.profecarlos.tallerapirest.restapi.model.Proveedor;
@@ -44,7 +45,7 @@ public class InventarioController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body("⚠️ No hay inventarios registrados");
             }
-            return ResponseEntity.ok(inventarios);
+            return ResponseEntity.ok(inventarios.stream().map(this::toResponseDTO).toList());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("⚠️ Error al obtener inventarios: " + e.getMessage());
@@ -59,7 +60,7 @@ public class InventarioController {
                         .body("⚠️ ID de inventario inválido");
             }
             return inventarioRepository.findById(id)
-                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .<ResponseEntity<?>>map(inventario -> ResponseEntity.ok(toResponseDTO(inventario)))
                     .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body("⚠️ Inventario no encontrado con ID: " + id));
         } catch (Exception e) {
@@ -175,5 +176,25 @@ public class InventarioController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("⚠️ Error al eliminar inventario: " + e.getMessage());
         }
+    }
+
+    private InventarioResponseDTO toResponseDTO(Inventario inventario) {
+        Product producto = inventario.getProducto();
+        Proveedor proveedor = inventario.getProveedor();
+
+        Integer productoId = producto != null ? producto.getId() : null;
+        String nombreProducto = producto != null ? producto.getNombreProducto() : null;
+        Integer proveedorId = proveedor != null ? proveedor.getIdProveedor() : null;
+        String nombreProveedor = proveedor != null ? proveedor.getNombreProveedor() : null;
+
+        return new InventarioResponseDTO(
+                inventario.getIdInventario(),
+                productoId,
+                nombreProducto,
+                proveedorId,
+                nombreProveedor,
+                inventario.getStockActual(),
+                inventario.getStockMinimo(),
+                inventario.getUbicacionBodega());
     }
 }

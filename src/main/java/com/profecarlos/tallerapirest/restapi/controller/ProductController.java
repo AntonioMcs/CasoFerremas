@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.profecarlos.tallerapirest.restapi.dto.ProductResponseDTO;
 import com.profecarlos.tallerapirest.restapi.model.Product;
 import com.profecarlos.tallerapirest.restapi.model.Categoria;
 import com.profecarlos.tallerapirest.restapi.model.Proveedor;
@@ -44,7 +45,7 @@ public class ProductController {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
                         .body("⚠️ No hay productos registrados");
             }
-            return ResponseEntity.ok(productos);
+            return ResponseEntity.ok(productos.stream().map(this::toResponseDTO).toList());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("⚠️ Error al obtener productos: " + e.getMessage());
@@ -59,7 +60,7 @@ public class ProductController {
                         .body("⚠️ ID de producto inválido");
             }
             return productRepository.findById(id)
-                    .<ResponseEntity<?>>map(ResponseEntity::ok)
+                    .<ResponseEntity<?>>map(product -> ResponseEntity.ok(toResponseDTO(product)))
                     .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND)
                             .body("⚠️ Producto no encontrado con ID: " + id));
         } catch (Exception e) {
@@ -196,5 +197,29 @@ public class ProductController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("⚠️ Error al eliminar producto: " + e.getMessage());
         }
+    }
+
+    private ProductResponseDTO toResponseDTO(Product product) {
+        Categoria categoria = product.getCategoria();
+        Proveedor proveedor = product.getProveedor();
+
+        Integer categoriaId = categoria != null ? categoria.getId() : null;
+        String categoriaNombre = categoria != null ? categoria.getNombreCategoria() : null;
+        Integer proveedorId = proveedor != null ? proveedor.getIdProveedor() : null;
+        String proveedorNombre = proveedor != null ? proveedor.getNombreProveedor() : null;
+
+        return new ProductResponseDTO(
+                product.getId(),
+                product.getNombreProducto(),
+                product.getMarca(),
+                product.getDescripcion(),
+                product.getPrecio(),
+                product.getUnidadMedida(),
+                product.getCodigoSku(),
+                categoriaId,
+                categoriaNombre,
+                proveedorId,
+                proveedorNombre,
+                product.getFechaRegistro());
     }
 }
