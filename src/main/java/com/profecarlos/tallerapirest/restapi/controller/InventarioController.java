@@ -41,10 +41,6 @@ public class InventarioController {
     public ResponseEntity<?> listarTodos() {
         try {
             List<Inventario> inventarios = inventarioRepository.findAll();
-            if (inventarios.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                        .body("⚠️ No hay inventarios registrados");
-            }
             return ResponseEntity.ok(inventarios.stream().map(this::toResponseDTO).toList());
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
