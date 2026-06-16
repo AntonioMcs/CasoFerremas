@@ -290,8 +290,104 @@ tbody tr:hover {
   padding: 20px 22px;
 }
 
+.edit-modal {
+  width: min(760px, 94%);
+}
+
+.modal-form {
+  display: grid;
+  gap: 18px;
+}
+
+.modal-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.modal-fields .field-span-2 {
+  grid-column: 1 / -1;
+}
+
 .modal-actions button {
   padding: 10px 14px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.modal-fields input,
+.modal-fields select,
+.modal-fields textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 14px;
+  background: rgba(2, 6, 23, 0.64);
+  color: #f8fafc;
+}
+
+.modal-fields textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.modal-fields label {
+  display: grid;
+  gap: 8px;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+}
+
+.edit-button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #38bdf8, #2563eb);
+  color: #fff;
+  font-weight: 700;
+}
+
+.update-button {
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 22px;
+  min-width: 140px;
+  background: linear-gradient(135deg, #94a3b8, #64748b);
+  color: #e2e8f0;
+  font-weight: 800;
+  box-shadow: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, opacity 0.2s ease;
+}
+
+.update-button:not(:disabled) {
+  background: linear-gradient(135deg, #22c55e, #15803d);
+  color: #f8fafc;
+  box-shadow: 0 14px 28px rgba(34, 197, 94, 0.28);
+  transform: scale(1.03);
+}
+
+.update-button:not(:disabled):hover {
+  transform: scale(1.06) translateY(-1px);
+  box-shadow: 0 18px 32px rgba(34, 197, 94, 0.34);
+}
+
+.update-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.action-cell {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.table-actions-header {
+  min-width: 180px;
 }
 
 /* Danger button for destructive actions */

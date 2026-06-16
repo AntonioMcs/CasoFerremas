@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, apiBaseUrl } from './lib/api';
 import ConfirmModal from './components/ConfirmModal';
+import EditModal from './components/EditModal';
 import type {
   CategoryFormState,
   CategoryItem,
@@ -15,6 +16,18 @@ import type {
   UserFormState,
   UserItem,
 } from './lib/types';
+
+type EditKind = 'product' | 'inventory' | 'user' | 'category' | 'status' | 'order';
+
+type EditDraft = ProductFormState | InventoryFormState | UserFormState | CategoryFormState | OrderStatusFormState | OrderFormState;
+
+type EditContext = {
+  kind: EditKind;
+  id: number;
+  title: string;
+  draft: EditDraft;
+  original: EditDraft;
+};
 
 const emptyProductForm: ProductFormState = {
   nombreProducto: '',
@@ -62,6 +75,55 @@ const emptyOrderForm: OrderFormState = {
 const paymentMethods = ['efectivo', 'tarjeta', 'transferencia'];
 const deliveryTypes = ['retiro_tienda', 'despacho_domicilio'];
 
+const toDateTimeLocalValue = (value?: string | null) => (value ? value.slice(0, 16) : '');
+
+const cloneDraft = <T extends EditDraft>(value: T) => ({ ...value });
+
+const productToDraft = (product: Product): ProductFormState => ({
+  nombreProducto: product.nombreProducto ?? '',
+  marca: product.marca ?? '',
+  descripcion: product.descripcion ?? '',
+  precio: product.precio != null ? String(product.precio) : '',
+  unidadMedida: product.unidadMedida ?? 'unidad',
+  codigoSku: product.codigoSku ?? '',
+  categoriaId: product.categoriaId != null ? String(product.categoriaId) : '',
+  proveedorId: product.proveedorId != null ? String(product.proveedorId) : '',
+});
+
+const inventoryToDraft = (inventory: InventoryItem): InventoryFormState => ({
+  productoId: inventory.productoId != null ? String(inventory.productoId) : '',
+  proveedorId: inventory.proveedorId != null ? String(inventory.proveedorId) : '',
+  stockActual: inventory.stockActual != null ? String(inventory.stockActual) : '',
+  stockMinimo: inventory.stockMinimo != null ? String(inventory.stockMinimo) : '0',
+  ubicacionBodega: inventory.ubicacionBodega ?? '',
+});
+
+const userToDraft = (user: UserItem): UserFormState => ({
+  nombre: user.nombre ?? '',
+  email: user.email ?? '',
+  contrasena: user.contrasena ?? '',
+  tipoUsuario: user.tipoUsuario ?? 'cliente',
+});
+
+const categoryToDraft = (category: CategoryItem): CategoryFormState => ({
+  nombreCategoria: category.nombreCategoria ?? '',
+});
+
+const statusToDraft = (status: OrderStatusItem): OrderStatusFormState => ({
+  nombreEstado: status.nombreEstado ?? '',
+});
+
+const orderToDraft = (order: OrderItem): OrderFormState => ({
+  usuarioId: order.usuario?.id != null ? String(order.usuario.id) : '',
+  estadoId: order.estadoPedido?.idEstado != null ? String(order.estadoPedido.idEstado) : '',
+  fechaPedido: toDateTimeLocalValue(order.fechaPedido),
+  total: order.total != null ? String(order.total) : '',
+  metodoPago: order.metodoPago ?? 'efectivo',
+  tipoEntrega: order.tipoEntrega ?? 'retiro_tienda',
+});
+
+const isSameDraft = (a: EditDraft, b: EditDraft) => JSON.stringify(a) === JSON.stringify(b);
+
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [inventories, setInventories] = useState<InventoryItem[]>([]);
@@ -83,6 +145,8 @@ export default function App() {
   const [modalMessage, setModalMessage] = useState('');
   const [modalLoading, setModalLoading] = useState(false);
   const [modalConfirmFn, setModalConfirmFn] = useState<(() => Promise<void>) | null>(null);
+  const [editContext, setEditContext] = useState<EditContext | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const backendUrl = useMemo(() => apiBaseUrl, []);
 
@@ -221,6 +285,260 @@ export default function App() {
     setModalOpen(true);
   };
 
+  const openEditModal = (context: EditContext) => {
+    setEditContext(context);
+  };
+
+  const closeEditModal = () => {
+    if (!editLoading) {
+      setEditContext(null);
+    }
+  };
+
+  const updateEditDraft = (updater: (draft: EditDraft) => EditDraft) => {
+    setEditContext((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        draft: updater(current.draft),
+      };
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editContext) return;
+
+    setEditLoading(true);
+    try {
+      switch (editContext.kind) {
+        case 'product':
+          await api.updateProduct(editContext.id, editContext.draft as ProductFormState);
+          setStatusMessage('Producto actualizado correctamente.');
+          break;
+        case 'inventory':
+          await api.updateInventory(editContext.id, editContext.draft as InventoryFormState);
+          setStatusMessage('Inventario actualizado correctamente.');
+          break;
+        case 'user':
+          await api.updateUser(editContext.id, editContext.draft as UserFormState);
+          setStatusMessage('Usuario actualizado correctamente.');
+          break;
+        case 'category':
+          await api.updateCategory(editContext.id, editContext.draft as CategoryFormState);
+          setStatusMessage('Categoría actualizada correctamente.');
+          break;
+        case 'status':
+          await api.updateOrderStatus(editContext.id, editContext.draft as OrderStatusFormState);
+          setStatusMessage('Estado de pedido actualizado correctamente.');
+          break;
+        case 'order':
+          await api.updateOrder(editContext.id, editContext.draft as OrderFormState);
+          setStatusMessage('Pedido actualizado correctamente.');
+          break;
+      }
+
+      setEditContext(null);
+      await loadData();
+    } catch (error) {
+      setStatusMessage(error instanceof Error ? error.message : 'Error al actualizar los datos.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const isEditDirty = editContext ? !isSameDraft(editContext.draft, editContext.original) : false;
+
+  const renderEditFields = () => {
+    if (!editContext) return null;
+
+    switch (editContext.kind) {
+      case 'product': {
+        const draft = editContext.draft as ProductFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label>
+              Nombre
+              <input value={draft.nombreProducto} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), nombreProducto: event.target.value }))} />
+            </label>
+            <label>
+              Marca
+              <input value={draft.marca} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), marca: event.target.value }))} />
+            </label>
+            <label className="field-span-2">
+              Descripción
+              <textarea value={draft.descripcion} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), descripcion: event.target.value }))} />
+            </label>
+            <label>
+              Precio
+              <input type="number" min="0" step="0.01" value={draft.precio} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), precio: event.target.value }))} />
+            </label>
+            <label>
+              Unidad de medida
+              <input value={draft.unidadMedida} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), unidadMedida: event.target.value }))} />
+            </label>
+            <label>
+              SKU
+              <input value={draft.codigoSku} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), codigoSku: event.target.value }))} />
+            </label>
+            <label>
+              Categoría ID
+              <input type="number" min="1" value={draft.categoriaId} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), categoriaId: event.target.value }))} />
+            </label>
+            <label>
+              Proveedor ID
+              <input type="number" min="1" value={draft.proveedorId} onChange={(event) => updateEditDraft((current) => ({ ...(current as ProductFormState), proveedorId: event.target.value }))} />
+            </label>
+          </>
+        );
+      }
+      case 'inventory': {
+        const draft = editContext.draft as InventoryFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label>
+              Producto ID
+              <input type="number" min="1" value={draft.productoId} onChange={(event) => updateEditDraft((current) => ({ ...(current as InventoryFormState), productoId: event.target.value }))} />
+            </label>
+            <label>
+              Proveedor ID
+              <input type="number" min="1" value={draft.proveedorId} onChange={(event) => updateEditDraft((current) => ({ ...(current as InventoryFormState), proveedorId: event.target.value }))} />
+            </label>
+            <label>
+              Stock actual
+              <input type="number" min="0" value={draft.stockActual} onChange={(event) => updateEditDraft((current) => ({ ...(current as InventoryFormState), stockActual: event.target.value }))} />
+            </label>
+            <label>
+              Stock mínimo
+              <input type="number" min="0" value={draft.stockMinimo} onChange={(event) => updateEditDraft((current) => ({ ...(current as InventoryFormState), stockMinimo: event.target.value }))} />
+            </label>
+            <label className="field-span-2">
+              Ubicación bodega
+              <input value={draft.ubicacionBodega} onChange={(event) => updateEditDraft((current) => ({ ...(current as InventoryFormState), ubicacionBodega: event.target.value }))} />
+            </label>
+          </>
+        );
+      }
+      case 'user': {
+        const draft = editContext.draft as UserFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label>
+              Nombre
+              <input value={draft.nombre} onChange={(event) => updateEditDraft((current) => ({ ...(current as UserFormState), nombre: event.target.value }))} />
+            </label>
+            <label>
+              Email
+              <input type="email" value={draft.email} onChange={(event) => updateEditDraft((current) => ({ ...(current as UserFormState), email: event.target.value }))} />
+            </label>
+            <label>
+              Contraseña
+              <input type="password" value={draft.contrasena} onChange={(event) => updateEditDraft((current) => ({ ...(current as UserFormState), contrasena: event.target.value }))} />
+            </label>
+            <label>
+              Tipo de usuario
+              <input value={draft.tipoUsuario} onChange={(event) => updateEditDraft((current) => ({ ...(current as UserFormState), tipoUsuario: event.target.value }))} />
+            </label>
+          </>
+        );
+      }
+      case 'category': {
+        const draft = editContext.draft as CategoryFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label className="field-span-2">
+              Nombre categoría
+              <input value={draft.nombreCategoria} onChange={(event) => updateEditDraft((current) => ({ ...(current as CategoryFormState), nombreCategoria: event.target.value }))} />
+            </label>
+          </>
+        );
+      }
+      case 'status': {
+        const draft = editContext.draft as OrderStatusFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label className="field-span-2">
+              Nombre estado
+              <input value={draft.nombreEstado} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderStatusFormState), nombreEstado: event.target.value }))} />
+            </label>
+          </>
+        );
+      }
+      case 'order': {
+        const draft = editContext.draft as OrderFormState;
+        return (
+          <>
+            <label className="field-span-2">
+              ID
+              <input value={editContext.id} disabled />
+            </label>
+            <label>
+              Usuario
+              <select value={draft.usuarioId} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), usuarioId: event.target.value }))}>
+                <option value="">Selecciona usuario</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.nombre}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Estado
+              <select value={draft.estadoId} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), estadoId: event.target.value }))}>
+                <option value="">Selecciona estado</option>
+                {orderStatuses.map((status) => (
+                  <option key={status.idEstado} value={status.idEstado}>{status.nombreEstado}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Fecha pedido
+              <input type="datetime-local" value={draft.fechaPedido} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), fechaPedido: event.target.value }))} />
+            </label>
+            <label>
+              Total
+              <input type="number" min="0" step="0.01" value={draft.total} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), total: event.target.value }))} />
+            </label>
+            <label>
+              Método de pago
+              <select value={draft.metodoPago} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), metodoPago: event.target.value }))}>
+                {paymentMethods.map((method) => (
+                  <option key={method} value={method}>{method}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Tipo de entrega
+              <select value={draft.tipoEntrega} onChange={(event) => updateEditDraft((current) => ({ ...(current as OrderFormState), tipoEntrega: event.target.value }))}>
+                {deliveryTypes.map((delivery) => (
+                  <option key={delivery} value={delivery}>{delivery}</option>
+                ))}
+              </select>
+            </label>
+          </>
+        );
+      }
+    }
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -312,6 +630,7 @@ export default function App() {
                       <th>Precio</th>
                       <th>Categoría</th>
                       <th>Proveedor</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -324,7 +643,22 @@ export default function App() {
                         <td>{product.categoriaNombre ?? '-'}</td>
                         <td>{product.proveedorNombre ?? '-'}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`la categoria \"${product.nombreProducto}\" producto`, product.id, api.deleteProduct)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'product',
+                                id: product.id,
+                                title: `Editar producto #${product.id}`,
+                                draft: cloneDraft(productToDraft(product)),
+                                original: cloneDraft(productToDraft(product)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`el producto "${product.nombreProducto}"`, product.id, api.deleteProduct)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -362,6 +696,7 @@ export default function App() {
                       <th>Stock actual</th>
                       <th>Stock mínimo</th>
                       <th>Ubicación</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -374,7 +709,22 @@ export default function App() {
                         <td>{item.stockMinimo}</td>
                         <td>{item.ubicacionBodega ?? '-'}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`el producto \"${item.nombreProducto ?? item.productoId}\" del inventario`, item.idInventario, api.deleteInventory)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'inventory',
+                                id: item.idInventario,
+                                title: `Editar inventario #${item.idInventario}`,
+                                draft: cloneDraft(inventoryToDraft(item)),
+                                original: cloneDraft(inventoryToDraft(item)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`el producto "${item.nombreProducto ?? item.productoId}" del inventario`, item.idInventario, api.deleteInventory)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -409,6 +759,7 @@ export default function App() {
                       <th>Nombre</th>
                       <th>Email</th>
                       <th>Tipo</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -419,7 +770,22 @@ export default function App() {
                         <td>{user.email}</td>
                         <td>{user.tipoUsuario}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`el usuario \"${user.nombre}\"`, user.id, api.deleteUser)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'user',
+                                id: user.id,
+                                title: `Editar usuario #${user.id}`,
+                                draft: cloneDraft(userToDraft(user)),
+                                original: cloneDraft(userToDraft(user)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`el usuario "${user.nombre}"`, user.id, api.deleteUser)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -449,6 +815,7 @@ export default function App() {
                     <tr>
                       <th>ID</th>
                       <th>Nombre</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -457,7 +824,22 @@ export default function App() {
                         <td>{category.id}</td>
                         <td>{category.nombreCategoria}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`la categoria \"${category.nombreCategoria}\"`, category.id, api.deleteCategory)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'category',
+                                id: category.id,
+                                title: `Editar categoría #${category.id}`,
+                                draft: cloneDraft(categoryToDraft(category)),
+                                original: cloneDraft(categoryToDraft(category)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`la categoría "${category.nombreCategoria}"`, category.id, api.deleteCategory)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -487,6 +869,7 @@ export default function App() {
                     <tr>
                       <th>ID</th>
                       <th>Nombre</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -495,7 +878,22 @@ export default function App() {
                         <td>{status.idEstado}</td>
                         <td>{status.nombreEstado}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`el estado de pedido \"${status.nombreEstado}\"`, status.idEstado, api.deleteOrderStatus)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'status',
+                                id: status.idEstado,
+                                title: `Editar estado de pedido #${status.idEstado}`,
+                                draft: cloneDraft(statusToDraft(status)),
+                                original: cloneDraft(statusToDraft(status)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`el estado de pedido "${status.nombreEstado}"`, status.idEstado, api.deleteOrderStatus)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -552,6 +950,7 @@ export default function App() {
                       <th>Total</th>
                       <th>Pago</th>
                       <th>Entrega</th>
+                      <th className="table-actions-header">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -564,7 +963,22 @@ export default function App() {
                         <td>{order.metodoPago ?? '-'}</td>
                         <td>{order.tipoEntrega ?? '-'}</td>
                         <td>
-                          <button className="danger-button" onClick={() => confirmAndDelete(`el pedido #${order.idPedido}`, order.idPedido, api.deleteOrder)}>Eliminar</button>
+                          <div className="action-cell">
+                            <button
+                              className="edit-button"
+                              type="button"
+                              onClick={() => openEditModal({
+                                kind: 'order',
+                                id: order.idPedido,
+                                title: `Editar pedido #${order.idPedido}`,
+                                draft: cloneDraft(orderToDraft(order)),
+                                original: cloneDraft(orderToDraft(order)),
+                              })}
+                            >
+                              Editar
+                            </button>
+                            <button className="danger-button" type="button" onClick={() => confirmAndDelete(`el pedido #${order.idPedido}`, order.idPedido, api.deleteOrder)}>Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -585,6 +999,16 @@ export default function App() {
         }}
         onCancel={() => setModalOpen(false)}
       />
+      <EditModal
+        open={editContext !== null}
+        title={editContext?.title ?? ''}
+        dirty={isEditDirty}
+        saving={editLoading}
+        onSave={saveEdit}
+        onCancel={closeEditModal}
+      >
+        {renderEditFields()}
+      </EditModal>
     </div>
   );
 }
