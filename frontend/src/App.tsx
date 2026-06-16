@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, apiBaseUrl } from './lib/api';
+import ConfirmModal from './components/ConfirmModal';
 import type {
   CategoryFormState,
   CategoryItem,
@@ -77,6 +78,11 @@ export default function App() {
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(emptyCategoryForm);
   const [orderStatusForm, setOrderStatusForm] = useState<OrderStatusFormState>(emptyOrderStatusForm);
   const [orderForm, setOrderForm] = useState<OrderFormState>(emptyOrderForm);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalTitle, setModalTitle] = useState('');
+  const [modalMessage, setModalMessage] = useState('');
+  const [modalLoading, setModalLoading] = useState(false);
+  const [modalConfirmFn, setModalConfirmFn] = useState<(() => Promise<void>) | null>(null);
 
   const backendUrl = useMemo(() => apiBaseUrl, []);
 
@@ -195,6 +201,26 @@ export default function App() {
     }
   };
 
+  const confirmAndDelete = async (label: string, id: number | string, fn: (id: number) => Promise<void>) => {
+    setModalTitle(`Eliminar ${label}`);
+    setModalMessage(`¿Quiere eliminar ${label} con ID ${id}? Esta acción es irreversible.`);
+    setModalLoading(false);
+    setModalConfirmFn(() => async () => {
+      setModalLoading(true);
+      try {
+        await fn(Number(id));
+        setModalOpen(false);
+        setStatusMessage(`${label} eliminado correctamente.`);
+        await loadData();
+      } catch (error) {
+        setStatusMessage(error instanceof Error ? error.message : `Error al eliminar ${label}.`);
+      } finally {
+        setModalLoading(false);
+      }
+    });
+    setModalOpen(true);
+  };
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -297,6 +323,9 @@ export default function App() {
                         <td>{product.precio}</td>
                         <td>{product.categoriaNombre ?? '-'}</td>
                         <td>{product.proveedorNombre ?? '-'}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`la categoria \"${product.nombreProducto}\" producto`, product.id, api.deleteProduct)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -344,6 +373,9 @@ export default function App() {
                         <td>{item.stockActual}</td>
                         <td>{item.stockMinimo}</td>
                         <td>{item.ubicacionBodega ?? '-'}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`el producto \"${item.nombreProducto ?? item.productoId}\" del inventario`, item.idInventario, api.deleteInventory)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -386,6 +418,9 @@ export default function App() {
                         <td>{user.nombre}</td>
                         <td>{user.email}</td>
                         <td>{user.tipoUsuario}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`el usuario \"${user.nombre}\"`, user.id, api.deleteUser)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -421,6 +456,9 @@ export default function App() {
                       <tr key={category.id}>
                         <td>{category.id}</td>
                         <td>{category.nombreCategoria}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`la categoria \"${category.nombreCategoria}\"`, category.id, api.deleteCategory)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -456,6 +494,9 @@ export default function App() {
                       <tr key={status.idEstado}>
                         <td>{status.idEstado}</td>
                         <td>{status.nombreEstado}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`el estado de pedido \"${status.nombreEstado}\"`, status.idEstado, api.deleteOrderStatus)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -522,6 +563,9 @@ export default function App() {
                         <td>{order.total ?? '-'}</td>
                         <td>{order.metodoPago ?? '-'}</td>
                         <td>{order.tipoEntrega ?? '-'}</td>
+                        <td>
+                          <button className="danger-button" onClick={() => confirmAndDelete(`el pedido #${order.idPedido}`, order.idPedido, api.deleteOrder)}>Eliminar</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -531,6 +575,16 @@ export default function App() {
           </section>
         )}
       </main>
+      <ConfirmModal
+        open={modalOpen}
+        title={modalTitle}
+        message={modalMessage}
+        loading={modalLoading}
+        onConfirm={async () => {
+          if (modalConfirmFn) await modalConfirmFn();
+        }}
+        onCancel={() => setModalOpen(false)}
+      />
     </div>
   );
 }

@@ -273,3 +273,38 @@ tbody tr:hover {
     flex-direction: column;
   }
 }
+
+/* Modal overlay and confirm styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(2,6,23,0.6);
+  backdrop-filter: blur(6px);
+  z-index: 1200;
+}
+
+.confirm-modal {
+  width: min(560px, 92%);
+  padding: 20px 22px;
+}
+
+.modal-actions button {
+  padding: 10px 14px;
+}
+
+/* Danger button for destructive actions */
+.danger-button {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 14px;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-weight: 700;
+}
+
+.danger-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

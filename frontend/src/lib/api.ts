@@ -100,4 +100,28 @@ export const api = {
       tipoEntrega: form.tipoEntrega,
     });
   },
+
+  async deleteProduct(id: number): Promise<void> {
+    await client.delete(`/api/v1/productos/${id}`);
+  },
+
+  async deleteInventory(id: number): Promise<void> {
+    await client.delete(`/api/v1/inventarios/${id}`);
+  },
+
+  async deleteUser(id: number): Promise<void> {
+    await client.delete(`/api/v1/usuarios/${id}`);
+  },
+
+  async deleteCategory(id: number): Promise<void> {
+    await client.delete(`/api/v1/categorias/${id}`);
+  },
+
+  async deleteOrderStatus(id: number): Promise<void> {
+    await client.delete(`/api/v1/estados-pedido/${id}`);
+  },
+
+  async deleteOrder(id: number): Promise<void> {
+    await client.delete(`/api/v1/pedidos/${id}`);
+  },
 };
