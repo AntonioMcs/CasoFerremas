@@ -5,42 +5,30 @@ import jakarta.validation.constraints.NotNull;
 
 public class FacturacionClienteDTO {
 
-    @NotNull(message = "El ID del usuario no puede estar vacío")
-    private Integer usuarioId;
+    @NotNull(message = "El ID del cliente no puede estar vacio")
+    private Integer clienteId;
 
     private String rut;
 
-    @NotBlank(message = "El nombre no puede estar vacío")
+    @NotBlank(message = "El nombre no puede estar vacio")
     private String nombre;
 
-    @NotBlank(message = "Los apellidos no pueden estar vacíos")
+    @NotBlank(message = "Los apellidos no pueden estar vacios")
     private String apellidos;
 
     private String telefono;
-
     private String direccion;
-
     private String comuna;
 
     public FacturacionClienteDTO() {
     }
 
-    public FacturacionClienteDTO(Integer usuarioId, String rut, String nombre, String apellidos, String telefono, String direccion, String comuna) {
-        this.usuarioId = usuarioId;
-        this.rut = rut;
-        this.nombre = nombre;
-        this.apellidos = apellidos;
-        this.telefono = telefono;
-        this.direccion = direccion;
-        this.comuna = comuna;
+    public Integer getClienteId() {
+        return clienteId;
     }
 
-    public Integer getUsuarioId() {
-        return usuarioId;
-    }
-
-    public void setUsuarioId(Integer usuarioId) {
-        this.usuarioId = usuarioId;
+    public void setClienteId(Integer clienteId) {
+        this.clienteId = clienteId;
     }
 
     public String getRut() {

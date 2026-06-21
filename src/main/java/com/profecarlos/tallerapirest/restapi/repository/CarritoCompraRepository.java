@@ -8,5 +8,5 @@ import com.profecarlos.tallerapirest.restapi.model.CarritoCompra;
 
 public interface CarritoCompraRepository extends JpaRepository<CarritoCompra, Integer> {
 
-    List<CarritoCompra> findByUsuarioId(Integer usuarioId);
+    List<CarritoCompra> findByClienteId(Integer clienteId);
 }

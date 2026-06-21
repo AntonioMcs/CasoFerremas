@@ -1,15 +1,13 @@
 -- ==========================================
--- TABLA: categorias
+-- ESQUEMA FERREMAS - PostgreSQL / Supabase
+-- Actualizado el 2026-06-21 segun el estado real consultado en Supabase.
+-- El codigo nuevo usa clientes/trabajadores; usuarios queda como legacy.
 -- ==========================================
 
 CREATE TABLE categorias (
     id_categoria SERIAL PRIMARY KEY,
     nombre_categoria VARCHAR(100) NOT NULL
 );
-
--- ==========================================
--- TABLA: proveedores
--- ==========================================
 
 CREATE TABLE proveedores (
     id_proveedor SERIAL PRIMARY KEY,
@@ -20,168 +18,139 @@ CREATE TABLE proveedores (
     datos_contacto VARCHAR(255)
 );
 
--- ==========================================
--- TABLA: usuarios
--- ==========================================
-
+-- LEGACY: la tabla existe actualmente en Supabase, pero el backend nuevo no la usa.
 CREATE TABLE usuarios (
     id_usuario SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
     contrasena VARCHAR(255) NOT NULL,
-    tipo_usuario VARCHAR(30) NOT NULL,
+    email VARCHAR(120) UNIQUE NOT NULL,
+    fecha_registro TIMESTAMP,
+    nombre VARCHAR(120) NOT NULL,
+    tipo_usuario VARCHAR(50) NOT NULL
+);
+
+-- Reemplaza funcionalmente a la tabla usuarios para compras, carrito y facturacion.
+CREATE TABLE clientes (
+    id_cliente SERIAL PRIMARY KEY,
+    nombre VARCHAR(120) NOT NULL,
+    email VARCHAR(120) UNIQUE NOT NULL,
+    contrasena VARCHAR(255) NOT NULL,
+    activo BOOLEAN,
+    ciudad VARCHAR(100),
+    codigo_postal VARCHAR(30),
+    rut VARCHAR(20),
+    telefono VARCHAR(30),
+    direccion VARCHAR(200),
+    comuna VARCHAR(100),
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- ==========================================
--- TABLA: estados_pedido
--- ==========================================
+-- Roles esperados por frontend/backend: vendedor, bodeguero, contador, admin.
+CREATE TABLE trabajadores (
+    id_trabajador SERIAL PRIMARY KEY,
+    nombre VARCHAR(120) NOT NULL,
+    email VARCHAR(120) UNIQUE NOT NULL,
+    contrasena VARCHAR(255) NOT NULL,
+    rol VARCHAR(40) NOT NULL,
+    activo BOOLEAN,
+    telefono VARCHAR(30),
+    fecha_contratacion TIMESTAMP,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
 CREATE TABLE estados_pedido (
     id_estado SERIAL PRIMARY KEY,
-    nombre_estado VARCHAR(50) NOT NULL
+    nombre_estado VARCHAR(50) NOT NULL UNIQUE
 );
-
--- ==========================================
--- TABLA: productos
--- ==========================================
 
 CREATE TABLE productos (
     id_producto SERIAL PRIMARY KEY,
-    codigo_sku VARCHAR(50) UNIQUE NOT NULL,
+    codigo_sku VARCHAR(100) UNIQUE,
     nombre_producto VARCHAR(150) NOT NULL,
-    descripcion VARCHAR(500),
+    descripcion VARCHAR(1000),
     marca VARCHAR(100),
     precio NUMERIC(10,2) NOT NULL CHECK (precio >= 0),
-    stock INTEGER NOT NULL DEFAULT 0 CHECK (stock >= 0),
     unidad_medida VARCHAR(50),
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    id_categoria INTEGER NOT NULL,
-    id_proveedor INTEGER NOT NULL,
-
-    CONSTRAINT fk_producto_categoria
-        FOREIGN KEY (id_categoria)
-        REFERENCES categorias(id_categoria),
-
-    CONSTRAINT fk_producto_proveedor
-        FOREIGN KEY (id_proveedor)
-        REFERENCES proveedores(id_proveedor)
+    id_categoria INTEGER,
+    id_proveedor INTEGER,
+    CONSTRAINT fk_producto_categoria FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria),
+    CONSTRAINT fk_producto_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor)
 );
 
--- ==========================================
--- TABLA: inventario
--- ==========================================
+CREATE TABLE productos_imagenes (
+    id_imagen SERIAL PRIMARY KEY,
+    id_producto INTEGER,
+    url_imagen VARCHAR(500) NOT NULL,
+    texto_alternativo VARCHAR(200),
+    principal BOOLEAN NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_producto_imagen_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto) ON DELETE CASCADE
+);
 
+-- Un producto puede tener varios registros de inventario, uno por sucursal/bodega.
 CREATE TABLE inventario (
     id_inventario SERIAL PRIMARY KEY,
     stock_actual INTEGER NOT NULL DEFAULT 0 CHECK (stock_actual >= 0),
     stock_minimo INTEGER NOT NULL DEFAULT 0 CHECK (stock_minimo >= 0),
     ubicacion_bodega VARCHAR(100),
-
-    id_producto INTEGER NOT NULL,
-    id_proveedor INTEGER NOT NULL,
-
-    CONSTRAINT fk_inventario_producto
-        FOREIGN KEY (id_producto)
-        REFERENCES productos(id_producto),
-
-    CONSTRAINT fk_inventario_proveedor
-        FOREIGN KEY (id_proveedor)
-        REFERENCES proveedores(id_proveedor)
+    sucursal VARCHAR(100),
+    id_producto INTEGER,
+    id_proveedor INTEGER,
+    CONSTRAINT fk_inventario_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT fk_inventario_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor)
 );
-
--- ==========================================
--- TABLA: pedidos
--- ==========================================
 
 CREATE TABLE pedidos (
     id_pedido SERIAL PRIMARY KEY,
     fecha_pedido TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     metodo_pago VARCHAR(50),
     tipo_entrega VARCHAR(50),
-    total NUMERIC(12,2) NOT NULL CHECK (total >= 0),
-
-    id_estado INTEGER NOT NULL,
-    id_usuario INTEGER NOT NULL,
-
-    CONSTRAINT fk_pedido_estado
-        FOREIGN KEY (id_estado)
-        REFERENCES estados_pedido(id_estado),
-
-    CONSTRAINT fk_pedido_usuario
-        FOREIGN KEY (id_usuario)
-        REFERENCES usuarios(id_usuario)
+    total NUMERIC(12,2) CHECK (total >= 0),
+    id_estado INTEGER,
+    id_cliente INTEGER,
+    id_trabajador INTEGER,
+    id_usuario INTEGER, -- LEGACY: existe en Supabase, no lo usa el codigo nuevo.
+    CONSTRAINT fk_pedido_estado FOREIGN KEY (id_estado) REFERENCES estados_pedido(id_estado),
+    CONSTRAINT fk_pedido_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
+    CONSTRAINT fk_pedido_trabajador FOREIGN KEY (id_trabajador) REFERENCES trabajadores(id_trabajador)
 );
-
--- ==========================================
--- TABLA: detalle_pedido
--- ==========================================
 
 CREATE TABLE detalle_pedido (
     id_detalle SERIAL PRIMARY KEY,
     cantidad INTEGER NOT NULL CHECK (cantidad > 0),
     precio_unitario NUMERIC(10,2) NOT NULL CHECK (precio_unitario >= 0),
     subtotal NUMERIC(12,2) NOT NULL CHECK (subtotal >= 0),
-
     id_pedido INTEGER NOT NULL,
     id_producto INTEGER NOT NULL,
-
-    CONSTRAINT fk_detalle_pedido
-        FOREIGN KEY (id_pedido)
-        REFERENCES pedidos(id_pedido),
-
-    CONSTRAINT fk_detalle_producto
-        FOREIGN KEY (id_producto)
-        REFERENCES productos(id_producto)
+    CONSTRAINT fk_detalle_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido) ON DELETE CASCADE,
+    CONSTRAINT fk_detalle_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
 );
-
--- ==========================================
--- TABLA: carrito_compras
--- ==========================================
 
 CREATE TABLE carrito_compras (
     id_carrito SERIAL PRIMARY KEY,
     cantidad INTEGER NOT NULL CHECK (cantidad > 0),
+    precio_unitario NUMERIC(10,2) CHECK (precio_unitario >= 0),
     descuento NUMERIC(10,2) DEFAULT 0 CHECK (descuento >= 0),
-    precio_final NUMERIC(12,2) NOT NULL CHECK (precio_final >= 0),
+    subtotal NUMERIC(12,2) CHECK (subtotal >= 0),
     fecha_agregado TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-
-    id_producto INTEGER NOT NULL,
-    id_usuario INTEGER NOT NULL,
-
-    CONSTRAINT fk_carrito_producto
-        FOREIGN KEY (id_producto)
-        REFERENCES productos(id_producto),
-
-    CONSTRAINT fk_carrito_usuario
-        FOREIGN KEY (id_usuario)
-        REFERENCES usuarios(id_usuario)
+    id_producto INTEGER,
+    id_cliente INTEGER,
+    id_usuario INTEGER, -- LEGACY: existe en Supabase, no lo usa el codigo nuevo.
+    CONSTRAINT fk_carrito_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT fk_carrito_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
 );
-
--- ==========================================
--- TABLA: facturacion_cliente
--- ==========================================
 
 CREATE TABLE facturacion_cliente (
     id_facturacion SERIAL PRIMARY KEY,
-    pedidos VARCHAR(100),
-    comuna VARCHAR(100),
-    direccion VARCHAR(200),
-    nombre VARCHAR(100),
     rut VARCHAR(20),
-    telefono VARCHAR(20),
-
-    id_usuario INTEGER NOT NULL,
-
-    CONSTRAINT fk_facturacion_usuario
-        FOREIGN KEY (id_usuario)
-        REFERENCES usuarios(id_usuario)
+    nombre VARCHAR(100) NOT NULL,
+    apellidos VARCHAR(100) NOT NULL,
+    telefono VARCHAR(50),
+    direccion VARCHAR(255),
+    comuna VARCHAR(100),
+    id_cliente INTEGER UNIQUE,
+    id_usuario INTEGER, -- LEGACY: existe en Supabase, no lo usa el codigo nuevo.
+    CONSTRAINT fk_facturacion_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
 );
-
--- ==========================================
--- TABLA: despachos
--- ==========================================
 
 CREATE TABLE despachos (
     id_despacho SERIAL PRIMARY KEY,
@@ -189,17 +158,9 @@ CREATE TABLE despachos (
     estado_despacho VARCHAR(50) NOT NULL,
     fecha_entrega TIMESTAMP,
     fecha_envio TIMESTAMP,
-
     id_pedido INTEGER NOT NULL,
-
-    CONSTRAINT fk_despacho_pedido
-        FOREIGN KEY (id_pedido)
-        REFERENCES pedidos(id_pedido)
+    CONSTRAINT fk_despacho_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido)
 );
-
--- ==========================================
--- TABLA: pagos
--- ==========================================
 
 CREATE TABLE pagos (
     id_pago SERIAL PRIMARY KEY,
@@ -207,10 +168,10 @@ CREATE TABLE pagos (
     fecha_pago TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     metodo_pago VARCHAR(50),
     monto NUMERIC(12,2) NOT NULL CHECK (monto >= 0),
-
-    id_pedido INTEGER NOT NULL,
-
-    CONSTRAINT fk_pago_pedido
-        FOREIGN KEY (id_pedido)
-        REFERENCES pedidos(id_pedido)
+    id_pedido INTEGER NOT NULL UNIQUE,
+    CONSTRAINT fk_pago_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido)
 );
+
+INSERT INTO estados_pedido (nombre_estado)
+VALUES ('pendiente'), ('pagado'), ('preparacion'), ('despachado'), ('entregado')
+ON CONFLICT (nombre_estado) DO NOTHING;

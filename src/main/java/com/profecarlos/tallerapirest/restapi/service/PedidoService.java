@@ -6,27 +6,28 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.profecarlos.tallerapirest.restapi.dto.PedidoDTO;
+import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
 import com.profecarlos.tallerapirest.restapi.model.Pedido;
-import com.profecarlos.tallerapirest.restapi.model.Usuario;
+import com.profecarlos.tallerapirest.restapi.model.Trabajador;
+import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
-import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
+import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
 
 @Service
 public class PedidoService {
 
-    private static final List<String> METODOS_PAGO = List.of("efectivo", "tarjeta", "transferencia");
-    private static final List<String> TIPOS_ENTREGA = List.of("retiro_tienda", "despacho_domicilio");
-
     private final PedidoRepository pedidoRepository;
-    private final UserRepository userRepository;
+    private final ClienteRepository clienteRepository;
+    private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
 
-    public PedidoService(PedidoRepository pedidoRepository, UserRepository userRepository,
-            EstadoPedidoRepository estadoPedidoRepository) {
+    public PedidoService(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
+            TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository) {
         this.pedidoRepository = pedidoRepository;
-        this.userRepository = userRepository;
+        this.clienteRepository = clienteRepository;
+        this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
     }
 
@@ -38,49 +39,20 @@ public class PedidoService {
         return pedidoRepository.findById(id);
     }
 
-    public List<Pedido> listarPorUsuario(Integer usuarioId) {
-        return pedidoRepository.findByUsuarioId(usuarioId);
-    }
-
-    public List<Pedido> listarPorEstado(Integer estadoId) {
-        return pedidoRepository.findByEstadoPedidoIdEstado(estadoId);
+    public List<Pedido> listarPorCliente(Integer clienteId) {
+        return pedidoRepository.findByClienteId(clienteId);
     }
 
     public Pedido crear(PedidoDTO dto) {
-        validar(dto);
-        Usuario usuario = userRepository.findById(dto.getUsuarioId())
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-        EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId())
-                .orElseThrow(() -> new IllegalArgumentException("Estado de pedido no encontrado"));
-
         Pedido pedido = new Pedido();
-        pedido.setUsuario(usuario);
-        pedido.setEstadoPedido(estadoPedido);
-        pedido.setFechaPedido(dto.getFechaPedido());
-        pedido.setTotal(dto.getTotal());
-        pedido.setMetodoPago(dto.getMetodoPago());
-        pedido.setTipoEntrega(dto.getTipoEntrega());
+        aplicarDatos(pedido, dto);
         return pedidoRepository.save(pedido);
     }
 
     public Pedido actualizar(Integer id, PedidoDTO dto) {
-        validar(dto);
         Pedido existing = pedidoRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Pedido no encontrado"));
-
-        Usuario usuario = userRepository.findById(dto.getUsuarioId())
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-        EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId())
-                .orElseThrow(() -> new IllegalArgumentException("Estado de pedido no encontrado"));
-
-        existing.setUsuario(usuario);
-        existing.setEstadoPedido(estadoPedido);
-        if (dto.getFechaPedido() != null) {
-            existing.setFechaPedido(dto.getFechaPedido());
-        }
-        existing.setTotal(dto.getTotal());
-        existing.setMetodoPago(dto.getMetodoPago());
-        existing.setTipoEntrega(dto.getTipoEntrega());
+        aplicarDatos(existing, dto);
         return pedidoRepository.save(existing);
     }
 
@@ -88,12 +60,26 @@ public class PedidoService {
         pedidoRepository.deleteById(id);
     }
 
-    private void validar(PedidoDTO dto) {
-        if (!METODOS_PAGO.contains(dto.getMetodoPago())) {
-            throw new IllegalArgumentException("metodo_pago debe ser efectivo, tarjeta o transferencia");
+    private void aplicarDatos(Pedido pedido, PedidoDTO dto) {
+        Cliente cliente = clienteRepository.findById(dto.getClienteId())
+                .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
+        EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId())
+                .orElseThrow(() -> new IllegalArgumentException("Estado de pedido no encontrado"));
+
+        Trabajador trabajador = null;
+        if (dto.getTrabajadorId() != null) {
+            trabajador = trabajadorRepository.findById(dto.getTrabajadorId())
+                    .orElseThrow(() -> new IllegalArgumentException("Trabajador no encontrado"));
         }
-        if (!TIPOS_ENTREGA.contains(dto.getTipoEntrega())) {
-            throw new IllegalArgumentException("tipo_entrega debe ser retiro_tienda o despacho_domicilio");
+
+        pedido.setCliente(cliente);
+        pedido.setTrabajador(trabajador);
+        pedido.setEstadoPedido(estadoPedido);
+        if (dto.getFechaPedido() != null) {
+            pedido.setFechaPedido(dto.getFechaPedido());
         }
+        pedido.setTotal(dto.getTotal());
+        pedido.setMetodoPago(dto.getMetodoPago());
+        pedido.setTipoEntrega(dto.getTipoEntrega());
     }
 }

@@ -1,24 +1,18 @@
 package com.profecarlos.tallerapirest.restapi.dto;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.util.List;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 
-public class PedidoDTO {
+public class VentaRequestDTO {
 
     @NotNull
     private Integer clienteId;
 
     private Integer trabajadorId;
-
-    @NotNull
-    private Integer estadoId;
-
-    private LocalDateTime fechaPedido;
-
-    private BigDecimal total;
 
     @NotBlank
     private String metodoPago;
@@ -26,7 +20,11 @@ public class PedidoDTO {
     @NotBlank
     private String tipoEntrega;
 
-    public PedidoDTO() {
+    @Valid
+    @NotEmpty
+    private List<VentaItemDTO> items;
+
+    public VentaRequestDTO() {
     }
 
     public Integer getClienteId() {
@@ -45,30 +43,6 @@ public class PedidoDTO {
         this.trabajadorId = trabajadorId;
     }
 
-    public Integer getEstadoId() {
-        return estadoId;
-    }
-
-    public void setEstadoId(Integer estadoId) {
-        this.estadoId = estadoId;
-    }
-
-    public LocalDateTime getFechaPedido() {
-        return fechaPedido;
-    }
-
-    public void setFechaPedido(LocalDateTime fechaPedido) {
-        this.fechaPedido = fechaPedido;
-    }
-
-    public BigDecimal getTotal() {
-        return total;
-    }
-
-    public void setTotal(BigDecimal total) {
-        this.total = total;
-    }
-
     public String getMetodoPago() {
         return metodoPago;
     }
@@ -83,5 +57,13 @@ public class PedidoDTO {
 
     public void setTipoEntrega(String tipoEntrega) {
         this.tipoEntrega = tipoEntrega;
+    }
+
+    public List<VentaItemDTO> getItems() {
+        return items;
+    }
+
+    public void setItems(List<VentaItemDTO> items) {
+        this.items = items;
     }
 }

@@ -9,7 +9,7 @@ import jakarta.validation.constraints.NotNull;
 public class CarritoCompraDTO {
 
     @NotNull
-    private Integer usuarioId;
+    private Integer clienteId;
 
     @NotNull
     private Integer productoId;
@@ -26,12 +26,12 @@ public class CarritoCompraDTO {
     public CarritoCompraDTO() {
     }
 
-    public Integer getUsuarioId() {
-        return usuarioId;
+    public Integer getClienteId() {
+        return clienteId;
     }
 
-    public void setUsuarioId(Integer usuarioId) {
-        this.usuarioId = usuarioId;
+    public void setClienteId(Integer clienteId) {
+        this.clienteId = clienteId;
     }
 
     public Integer getProductoId() {

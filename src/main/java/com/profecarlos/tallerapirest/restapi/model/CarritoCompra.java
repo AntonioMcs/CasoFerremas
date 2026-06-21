@@ -26,8 +26,8 @@ public class CarritoCompra extends RepresentationModel<CarritoCompra> {
     private Integer idCarrito;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_usuario")
-    private Usuario usuario;
+    @JoinColumn(name = "id_cliente")
+    private Cliente cliente;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_producto")
@@ -69,12 +69,12 @@ public class CarritoCompra extends RepresentationModel<CarritoCompra> {
         this.idCarrito = idCarrito;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public Cliente getCliente() {
+        return cliente;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setCliente(Cliente cliente) {
+        this.cliente = cliente;
     }
 
     public Product getProducto() {

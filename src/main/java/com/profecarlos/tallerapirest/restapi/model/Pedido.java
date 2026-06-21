@@ -26,8 +26,12 @@ public class Pedido extends RepresentationModel<Pedido> {
     private Integer idPedido;
 
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_usuario")
-    private Usuario usuario;
+    @JoinColumn(name = "id_cliente")
+    private Cliente cliente;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_trabajador")
+    private Trabajador trabajador;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_estado")
@@ -63,12 +67,20 @@ public class Pedido extends RepresentationModel<Pedido> {
         this.idPedido = idPedido;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public Cliente getCliente() {
+        return cliente;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setCliente(Cliente cliente) {
+        this.cliente = cliente;
+    }
+
+    public Trabajador getTrabajador() {
+        return trabajador;
+    }
+
+    public void setTrabajador(Trabajador trabajador) {
+        this.trabajador = trabajador;
     }
 
     public EstadoPedido getEstadoPedido() {

@@ -16,24 +16,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.profecarlos.tallerapirest.restapi.dto.CarritoCompraDTO;
 import com.profecarlos.tallerapirest.restapi.model.CarritoCompra;
+import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.model.Product;
-import com.profecarlos.tallerapirest.restapi.model.Usuario;
 import com.profecarlos.tallerapirest.restapi.repository.CarritoCompraRepository;
+import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
-import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/v1/carritos-compras")
 public class CarritoCompraController {
 
     private final CarritoCompraRepository carritoCompraRepository;
-    private final UserRepository userRepository;
+    private final ClienteRepository clienteRepository;
     private final ProductRepository productRepository;
 
-    public CarritoCompraController(CarritoCompraRepository carritoCompraRepository, UserRepository userRepository,
+    public CarritoCompraController(CarritoCompraRepository carritoCompraRepository, ClienteRepository clienteRepository,
             ProductRepository productRepository) {
         this.carritoCompraRepository = carritoCompraRepository;
-        this.userRepository = userRepository;
+        this.clienteRepository = clienteRepository;
         this.productRepository = productRepository;
     }
 
@@ -42,62 +42,28 @@ public class CarritoCompraController {
         return ResponseEntity.ok(carritoCompraRepository.findAll());
     }
 
-    @GetMapping("/{id}")
-    public ResponseEntity<CarritoCompra> buscarPorId(@PathVariable Integer id) {
-        return carritoCompraRepository.findById(id)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    @GetMapping("/cliente/{clienteId}")
+    public ResponseEntity<List<CarritoCompra>> listarPorCliente(@PathVariable Integer clienteId) {
+        return ResponseEntity.ok(carritoCompraRepository.findByClienteId(clienteId));
     }
 
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody CarritoCompraDTO dto) {
-        Usuario usuario = userRepository.findById(dto.getUsuarioId()).orElse(null);
-        if (usuario == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuario no encontrado");
-        }
-
-        Product producto = productRepository.findById(dto.getProductoId()).orElse(null);
-        if (producto == null) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
-        }
-
         CarritoCompra carritoCompra = new CarritoCompra();
-        carritoCompra.setUsuario(usuario);
-        carritoCompra.setProducto(producto);
-        carritoCompra.setCantidad(dto.getCantidad());
-        carritoCompra.setPrecioUnitario(dto.getPrecioUnitario() != null ? dto.getPrecioUnitario() : producto.getPrecio());
-        carritoCompra.setDescuento(dto.getDescuento() != null ? dto.getDescuento() : BigDecimal.ZERO);
-        carritoCompra.setSubtotal(dto.getSubtotal() != null ? dto.getSubtotal()
-                : carritoCompra.getPrecioUnitario().multiply(BigDecimal.valueOf(dto.getCantidad()))
-                        .subtract(carritoCompra.getDescuento()));
-        carritoCompra.setFechaAgregado(dto.getFechaAgregado());
-
+        ResponseEntity<?> resultado = aplicarDatos(carritoCompra, dto);
+        if (resultado != null) {
+            return resultado;
+        }
         return new ResponseEntity<>(carritoCompraRepository.save(carritoCompra), HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
     public ResponseEntity<?> actualizar(@PathVariable Integer id, @RequestBody CarritoCompraDTO dto) {
         return carritoCompraRepository.findById(id).map(existing -> {
-            Usuario usuario = userRepository.findById(dto.getUsuarioId()).orElse(null);
-            if (usuario == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Usuario no encontrado");
+            ResponseEntity<?> resultado = aplicarDatos(existing, dto);
+            if (resultado != null) {
+                return resultado;
             }
-
-            Product producto = productRepository.findById(dto.getProductoId()).orElse(null);
-            if (producto == null) {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
-            }
-
-            existing.setUsuario(usuario);
-            existing.setProducto(producto);
-            existing.setCantidad(dto.getCantidad());
-            existing.setPrecioUnitario(dto.getPrecioUnitario() != null ? dto.getPrecioUnitario() : producto.getPrecio());
-            existing.setDescuento(dto.getDescuento() != null ? dto.getDescuento() : BigDecimal.ZERO);
-            existing.setSubtotal(dto.getSubtotal() != null ? dto.getSubtotal()
-                    : existing.getPrecioUnitario().multiply(BigDecimal.valueOf(dto.getCantidad()))
-                            .subtract(existing.getDescuento()));
-            existing.setFechaAgregado(dto.getFechaAgregado() != null ? dto.getFechaAgregado() : existing.getFechaAgregado());
-
             return ResponseEntity.ok(carritoCompraRepository.save(existing));
         }).orElse(ResponseEntity.notFound().build());
     }
@@ -109,5 +75,30 @@ public class CarritoCompraController {
         }
         carritoCompraRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private ResponseEntity<?> aplicarDatos(CarritoCompra carritoCompra, CarritoCompraDTO dto) {
+        Cliente cliente = clienteRepository.findById(dto.getClienteId()).orElse(null);
+        if (cliente == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Cliente no encontrado");
+        }
+
+        Product producto = productRepository.findById(dto.getProductoId()).orElse(null);
+        if (producto == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
+        }
+
+        BigDecimal descuento = dto.getDescuento() != null ? dto.getDescuento() : BigDecimal.ZERO;
+        BigDecimal precioUnitario = dto.getPrecioUnitario() != null ? dto.getPrecioUnitario() : producto.getPrecio();
+
+        carritoCompra.setCliente(cliente);
+        carritoCompra.setProducto(producto);
+        carritoCompra.setCantidad(dto.getCantidad());
+        carritoCompra.setPrecioUnitario(precioUnitario);
+        carritoCompra.setDescuento(descuento);
+        carritoCompra.setSubtotal(dto.getSubtotal() != null ? dto.getSubtotal()
+                : precioUnitario.multiply(BigDecimal.valueOf(dto.getCantidad())).subtract(descuento));
+        carritoCompra.setFechaAgregado(dto.getFechaAgregado());
+        return null;
     }
 }

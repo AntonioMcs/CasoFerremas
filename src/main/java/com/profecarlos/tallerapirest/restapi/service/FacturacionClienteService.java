@@ -6,20 +6,21 @@ import java.util.Optional;
 import org.springframework.stereotype.Service;
 
 import com.profecarlos.tallerapirest.restapi.dto.FacturacionClienteDTO;
+import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.model.FacturacionCliente;
-import com.profecarlos.tallerapirest.restapi.model.Usuario;
+import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.FacturacionClienteRepository;
-import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
 
 @Service
 public class FacturacionClienteService {
 
     private final FacturacionClienteRepository facturacionClienteRepository;
-    private final UserRepository userRepository;
+    private final ClienteRepository clienteRepository;
 
-    public FacturacionClienteService(FacturacionClienteRepository facturacionClienteRepository, UserRepository userRepository) {
+    public FacturacionClienteService(FacturacionClienteRepository facturacionClienteRepository,
+            ClienteRepository clienteRepository) {
         this.facturacionClienteRepository = facturacionClienteRepository;
-        this.userRepository = userRepository;
+        this.clienteRepository = clienteRepository;
     }
 
     public List<FacturacionCliente> listarTodos() {
@@ -31,29 +32,25 @@ public class FacturacionClienteService {
     }
 
     public FacturacionCliente crear(FacturacionClienteDTO dto) {
-        Usuario usuario = userRepository.findById(dto.getUsuarioId())
-                .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-
-        FacturacionCliente facturacion = new FacturacionCliente(null, usuario, dto.getRut(), dto.getNombre(),
+        Cliente cliente = clienteRepository.findById(dto.getClienteId())
+                .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
+        FacturacionCliente facturacion = new FacturacionCliente(null, cliente, dto.getRut(), dto.getNombre(),
                 dto.getApellidos(), dto.getTelefono(), dto.getDireccion(), dto.getComuna());
         return facturacionClienteRepository.save(facturacion);
     }
 
     public FacturacionCliente actualizar(Integer id, FacturacionClienteDTO dto) {
         FacturacionCliente existing = facturacionClienteRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Facturación no encontrada"));
-
+                .orElseThrow(() -> new IllegalArgumentException("Facturacion no encontrada"));
+        Cliente cliente = clienteRepository.findById(dto.getClienteId())
+                .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
+        existing.setCliente(cliente);
         existing.setRut(dto.getRut());
         existing.setNombre(dto.getNombre());
         existing.setApellidos(dto.getApellidos());
         existing.setTelefono(dto.getTelefono());
         existing.setDireccion(dto.getDireccion());
         existing.setComuna(dto.getComuna());
-        if (dto.getUsuarioId() != null) {
-            Usuario usuario = userRepository.findById(dto.getUsuarioId())
-                    .orElseThrow(() -> new IllegalArgumentException("Usuario no encontrado"));
-            existing.setUsuario(usuario);
-        }
         return facturacionClienteRepository.save(existing);
     }
 

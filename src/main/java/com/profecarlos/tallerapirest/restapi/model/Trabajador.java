@@ -15,48 +15,54 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 
 @Entity
-@Table(name = "usuarios")
-public class Usuario extends RepresentationModel<Usuario> {
+@Table(name = "trabajadores")
+public class Trabajador extends RepresentationModel<Trabajador> {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "id_usuario")
+    @Column(name = "id_trabajador")
     private Integer id;
 
-    @NotBlank(message = "El nombre no puede estar vacío")
-    @Column(nullable = false)
+    @NotBlank(message = "El nombre no puede estar vacio")
+    @Column(nullable = false, length = 120)
     private String nombre;
 
-    @Email(message = "Debe ser un email válido")
-    @Column(nullable = false, unique = true)
+    @Email(message = "Debe ser un email valido")
+    @Column(nullable = false, unique = true, length = 120)
     private String email;
 
-    @NotBlank(message = "La contraseña no puede estar vacía")
+    @NotBlank(message = "La contrasena no puede estar vacia")
     @Column(nullable = false)
     private String contrasena;
 
-    @NotBlank(message = "El tipo de usuario no puede estar vacío")
-    @Column(name = "tipo_usuario", nullable = false, length = 50)
-    private String tipoUsuario;
+    @NotBlank(message = "El rol no puede estar vacio")
+    @Column(nullable = false, length = 40)
+    private String rol;
+
+    @Column(nullable = false)
+    private Boolean activo = true;
 
     @Column(name = "fecha_registro")
     private LocalDateTime fechaRegistro;
 
-    public Usuario() {
+    public Trabajador() {
     }
 
-    public Usuario(Integer id, String nombre, String email, String contrasena, String tipoUsuario) {
+    public Trabajador(Integer id, String nombre, String email, String contrasena, String rol) {
         this.id = id;
         this.nombre = nombre;
         this.email = email;
         this.contrasena = contrasena;
-        this.tipoUsuario = tipoUsuario;
+        this.rol = rol;
     }
 
     @PrePersist
     public void prePersist() {
         if (fechaRegistro == null) {
             fechaRegistro = LocalDateTime.now();
+        }
+        if (activo == null) {
+            activo = true;
         }
     }
 
@@ -92,12 +98,20 @@ public class Usuario extends RepresentationModel<Usuario> {
         this.contrasena = contrasena;
     }
 
-    public String getTipoUsuario() {
-        return tipoUsuario;
+    public String getRol() {
+        return rol;
     }
 
-    public void setTipoUsuario(String tipoUsuario) {
-        this.tipoUsuario = tipoUsuario;
+    public void setRol(String rol) {
+        this.rol = rol;
+    }
+
+    public Boolean getActivo() {
+        return activo;
+    }
+
+    public void setActivo(Boolean activo) {
+        this.activo = activo;
     }
 
     public LocalDateTime getFechaRegistro() {

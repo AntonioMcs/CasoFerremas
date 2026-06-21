@@ -96,6 +96,7 @@ public class InventarioController {
             Inventario inventario = new Inventario(null, producto, inventarioDTO.getStockActual(),
                     inventarioDTO.getStockMinimo(), inventarioDTO.getUbicacionBodega());
             inventario.setProveedor(proveedor);
+            inventario.setSucursal(inventarioDTO.getSucursal());
             
             Inventario guardado = inventarioRepository.save(inventario);
             return ResponseEntity.status(HttpStatus.CREATED)
@@ -128,6 +129,17 @@ public class InventarioController {
                     }
                     if (inventarioDTO.getUbicacionBodega() != null) {
                         existing.setUbicacionBodega(inventarioDTO.getUbicacionBodega());
+                    }
+                    if (inventarioDTO.getSucursal() != null) {
+                        existing.setSucursal(inventarioDTO.getSucursal());
+                    }
+                    if (inventarioDTO.getProductoId() != null) {
+                        Product producto = productRepository.findById(inventarioDTO.getProductoId()).orElse(null);
+                        if (producto == null) {
+                            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                                    .body("Producto no encontrado con ID: " + inventarioDTO.getProductoId());
+                        }
+                        existing.setProducto(producto);
                     }
                     if (inventarioDTO.getProveedorId() != null) {
                         Proveedor proveedor = proveedorRepository.findById(inventarioDTO.getProveedorId()).orElse(null);
@@ -191,6 +203,7 @@ public class InventarioController {
                 nombreProveedor,
                 inventario.getStockActual(),
                 inventario.getStockMinimo(),
-                inventario.getUbicacionBodega());
+                inventario.getUbicacionBodega(),
+                inventario.getSucursal());
     }
 }

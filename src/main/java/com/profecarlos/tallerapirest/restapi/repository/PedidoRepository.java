@@ -8,9 +8,10 @@ import com.profecarlos.tallerapirest.restapi.model.Pedido;
 
 public interface PedidoRepository extends JpaRepository<Pedido, Integer> {
 
-    List<Pedido> findByUsuarioId(Integer usuarioId);
+    List<Pedido> findByClienteId(Integer clienteId);
 
     List<Pedido> findByEstadoPedidoIdEstado(Integer estadoId);
-}
 
+    List<Pedido> findByMetodoPagoAndEstadoPedidoNombreEstadoIgnoreCase(String metodoPago, String nombreEstado);
+}
 

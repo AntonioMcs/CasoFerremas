@@ -10,7 +10,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotNull;
 
@@ -23,8 +22,8 @@ public class Inventario extends RepresentationModel<Inventario> {
     @Column(name = "id_inventario")
     private Integer idInventario;
 
-    @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_producto", unique = true)
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_producto")
     private Product producto;
 
     @ManyToOne(fetch = FetchType.EAGER)
@@ -40,6 +39,9 @@ public class Inventario extends RepresentationModel<Inventario> {
 
     @Column(name = "ubicacion_bodega", length = 100)
     private String ubicacionBodega;
+
+    @Column(length = 100)
+    private String sucursal;
 
     public Inventario() {
     }
@@ -98,5 +100,13 @@ public class Inventario extends RepresentationModel<Inventario> {
 
     public void setUbicacionBodega(String ubicacionBodega) {
         this.ubicacionBodega = ubicacionBodega;
+    }
+
+    public String getSucursal() {
+        return sucursal;
+    }
+
+    public void setSucursal(String sucursal) {
+        this.sucursal = sucursal;
     }
 }

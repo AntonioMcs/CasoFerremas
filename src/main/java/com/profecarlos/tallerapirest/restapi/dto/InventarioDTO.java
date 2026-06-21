@@ -14,6 +14,8 @@ public class InventarioDTO {
 
     private String ubicacionBodega;
 
+    private String sucursal;
+
     private Integer proveedorId;
 
     public InventarioDTO() {
@@ -64,6 +66,14 @@ public class InventarioDTO {
 
     public void setUbicacionBodega(String ubicacionBodega) {
         this.ubicacionBodega = ubicacionBodega;
+    }
+
+    public String getSucursal() {
+        return sucursal;
+    }
+
+    public void setSucursal(String sucursal) {
+        this.sucursal = sucursal;
     }
 
     public Integer getProveedorId() {

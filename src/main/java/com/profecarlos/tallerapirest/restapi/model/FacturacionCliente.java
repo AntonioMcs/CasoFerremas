@@ -23,8 +23,8 @@ public class FacturacionCliente extends RepresentationModel<FacturacionCliente> 
     private Integer idFacturacion;
 
     @OneToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "id_usuario", unique = true)
-    private Usuario usuario;
+    @JoinColumn(name = "id_cliente", unique = true)
+    private Cliente cliente;
 
     @Column(name = "rut", length = 20)
     private String rut;
@@ -49,9 +49,9 @@ public class FacturacionCliente extends RepresentationModel<FacturacionCliente> 
     public FacturacionCliente() {
     }
 
-    public FacturacionCliente(Integer idFacturacion, Usuario usuario, String rut, String nombre, String apellidos, String telefono, String direccion, String comuna) {
+    public FacturacionCliente(Integer idFacturacion, Cliente cliente, String rut, String nombre, String apellidos, String telefono, String direccion, String comuna) {
         this.idFacturacion = idFacturacion;
-        this.usuario = usuario;
+        this.cliente = cliente;
         this.rut = rut;
         this.nombre = nombre;
         this.apellidos = apellidos;
@@ -68,12 +68,12 @@ public class FacturacionCliente extends RepresentationModel<FacturacionCliente> 
         this.idFacturacion = idFacturacion;
     }
 
-    public Usuario getUsuario() {
-        return usuario;
+    public Cliente getCliente() {
+        return cliente;
     }
 
-    public void setUsuario(Usuario usuario) {
-        this.usuario = usuario;
+    public void setCliente(Cliente cliente) {
+        this.cliente = cliente;
     }
 
     public String getRut() {

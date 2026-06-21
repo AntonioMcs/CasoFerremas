@@ -10,12 +10,18 @@ public class InventarioResponseDTO {
     private Integer stockActual;
     private Integer stockMinimo;
     private String ubicacionBodega;
+    private String sucursal;
 
     public InventarioResponseDTO() {
     }
 
     public InventarioResponseDTO(Integer idInventario, Integer productoId, String nombreProducto, Integer proveedorId,
             String nombreProveedor, Integer stockActual, Integer stockMinimo, String ubicacionBodega) {
+        this(idInventario, productoId, nombreProducto, proveedorId, nombreProveedor, stockActual, stockMinimo, ubicacionBodega, null);
+    }
+
+    public InventarioResponseDTO(Integer idInventario, Integer productoId, String nombreProducto, Integer proveedorId,
+            String nombreProveedor, Integer stockActual, Integer stockMinimo, String ubicacionBodega, String sucursal) {
         this.idInventario = idInventario;
         this.productoId = productoId;
         this.nombreProducto = nombreProducto;
@@ -24,6 +30,7 @@ public class InventarioResponseDTO {
         this.stockActual = stockActual;
         this.stockMinimo = stockMinimo;
         this.ubicacionBodega = ubicacionBodega;
+        this.sucursal = sucursal;
     }
 
     public Integer getIdInventario() {
@@ -88,5 +95,13 @@ public class InventarioResponseDTO {
 
     public void setUbicacionBodega(String ubicacionBodega) {
         this.ubicacionBodega = ubicacionBodega;
+    }
+
+    public String getSucursal() {
+        return sucursal;
+    }
+
+    public void setSucursal(String sucursal) {
+        this.sucursal = sucursal;
     }
 }

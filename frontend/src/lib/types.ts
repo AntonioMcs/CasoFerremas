@@ -24,6 +24,21 @@ export type ProductFormState = {
   proveedorId: string;
 };
 
+export type ProductImage = {
+  idImagen: number;
+  producto?: Product | null;
+  urlImagen: string;
+  textoAlternativo?: string | null;
+  principal: boolean;
+};
+
+export type ProductImageFormState = {
+  productoId: string;
+  urlImagen: string;
+  textoAlternativo: string;
+  principal: boolean;
+};
+
 export type InventoryItem = {
   idInventario: number;
   productoId?: number | null;
@@ -33,6 +48,7 @@ export type InventoryItem = {
   stockActual: number;
   stockMinimo: number;
   ubicacionBodega?: string | null;
+  sucursal?: string | null;
 };
 
 export type InventoryFormState = {
@@ -41,28 +57,52 @@ export type InventoryFormState = {
   stockActual: string;
   stockMinimo: string;
   ubicacionBodega: string;
+  sucursal: string;
 };
 
-export type UserItem = {
+export type Cliente = {
   id: number;
   nombre: string;
   email: string;
   contrasena?: string | null;
-  tipoUsuario: string;
+  rut?: string | null;
+  telefono?: string | null;
+  direccion?: string | null;
+  comuna?: string | null;
   fechaRegistro?: string | null;
 };
 
-export type UserFormState = {
+export type ClienteFormState = {
   nombre: string;
   email: string;
   contrasena: string;
-  tipoUsuario: string;
+  rut: string;
+  telefono: string;
+  direccion: string;
+  comuna: string;
+};
+
+export type Trabajador = {
+  id: number;
+  nombre: string;
+  email: string;
+  contrasena?: string | null;
+  rol: 'vendedor' | 'bodeguero' | 'contador' | 'admin' | string;
+  activo: boolean;
+  fechaRegistro?: string | null;
+};
+
+export type TrabajadorFormState = {
+  nombre: string;
+  email: string;
+  contrasena: string;
+  rol: string;
+  activo: boolean;
 };
 
 export type CategoryItem = {
   id: number;
   nombreCategoria: string;
-  links?: unknown[];
 };
 
 export type CategoryFormState = {
@@ -74,18 +114,10 @@ export type OrderStatusItem = {
   nombreEstado: string;
 };
 
-export type OrderStatusFormState = {
-  nombreEstado: string;
-};
-
 export type OrderItem = {
   idPedido: number;
-  usuario?: {
-    id: number;
-    nombre: string;
-    email?: string | null;
-    tipoUsuario?: string | null;
-  } | null;
+  cliente?: Cliente | null;
+  trabajador?: Trabajador | null;
   estadoPedido?: OrderStatusItem | null;
   fechaPedido?: string | null;
   total?: number | string | null;
@@ -93,11 +125,17 @@ export type OrderItem = {
   tipoEntrega?: string | null;
 };
 
-export type OrderFormState = {
-  usuarioId: string;
-  estadoId: string;
-  fechaPedido: string;
-  total: string;
+export type SaleItem = {
+  productoId: number;
+  inventarioId?: number;
+  sucursal?: string;
+  cantidad: number;
+};
+
+export type SaleRequest = {
+  clienteId: number;
+  trabajadorId?: number | null;
   metodoPago: string;
   tipoEntrega: string;
+  items: SaleItem[];
 };
