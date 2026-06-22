@@ -19,6 +19,8 @@ import type {
 } from './lib/types';
 
 type View = 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin';
+type AdminModule = 'productos' | 'inventario' | 'clientes' | 'trabajadores' | 'pedidos' | 'categorias' | 'imagenes';
+type AdminAction = 'ver' | 'agregar' | 'modificar' | 'eliminar';
 type CartLine = Omit<SaleItem, 'sucursal'> & { nombre: string; precio: number; sucursal?: string | null };
 
 const emptyProductForm: ProductFormState = {
@@ -80,9 +82,20 @@ const roleLabels: Record<View, string> = {
   admin: 'Admin',
 };
 
+const adminModules: Array<{ key: AdminModule; label: string; description: string }> = [
+  { key: 'productos', label: 'Productos', description: 'Catalogo, precios, SKU y ficha comercial.' },
+  { key: 'inventario', label: 'Inventario', description: 'Stock por bodega, comuna o canal web.' },
+  { key: 'clientes', label: 'Clientes', description: 'Cuentas de compra y datos de contacto.' },
+  { key: 'trabajadores', label: 'Trabajadores', description: 'Roles internos para vendedor, bodega, contador y admin.' },
+  { key: 'pedidos', label: 'Pedidos', description: 'Compras realizadas y estados de pago.' },
+  { key: 'categorias', label: 'Categorias', description: 'Rubros usados para ordenar el catalogo.' },
+  { key: 'imagenes', label: 'Imagenes', description: 'Galeria visual asociada a productos.' },
+];
+
 export default function App() {
   const [session, setSession] = useState<SessionUser | null>(null);
   const [activeView, setActiveView] = useState<View>('cliente');
+  const [path, setPath] = useState(() => window.location.pathname);
   const [showLogin, setShowLogin] = useState(false);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
@@ -96,7 +109,12 @@ export default function App() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
-  const [search, setSearch] = useState('');
+  const [storeSearchDraft, setStoreSearchDraft] = useState('');
+  const [storeSearchQuery, setStoreSearchQuery] = useState('');
+  const [sellerSearchDraft, setSellerSearchDraft] = useState('');
+  const [sellerSearchQuery, setSellerSearchQuery] = useState('');
+  const [adminSearchDraft, setAdminSearchDraft] = useState('');
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('todos');
   const [selectedBranch, setSelectedBranch] = useState('todas');
   const [clientCart, setClientCart] = useState<CartLine[]>([]);
@@ -112,6 +130,20 @@ export default function App() {
   const [trabajadorForm, setTrabajadorForm] = useState<TrabajadorFormState>(emptyTrabajadorForm);
   const [imageForm, setImageForm] = useState<ProductImageFormState>(emptyImageForm);
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>({ nombreCategoria: '' });
+  const [expandedAdminModule, setExpandedAdminModule] = useState<AdminModule | null>('productos');
+  const [adminAction, setAdminAction] = useState<AdminAction>('ver');
+  const [editingProductId, setEditingProductId] = useState('');
+  const [editingInventoryId, setEditingInventoryId] = useState('');
+  const [editingClienteId, setEditingClienteId] = useState('');
+  const [editingTrabajadorId, setEditingTrabajadorId] = useState('');
+  const [editingCategoryId, setEditingCategoryId] = useState('');
+  const [editingImageId, setEditingImageId] = useState('');
+  const [productEditForm, setProductEditForm] = useState<ProductFormState>(emptyProductForm);
+  const [inventoryEditForm, setInventoryEditForm] = useState<InventoryFormState>(emptyInventoryForm);
+  const [clienteEditForm, setClienteEditForm] = useState<ClienteFormState>(emptyClienteForm);
+  const [trabajadorEditForm, setTrabajadorEditForm] = useState<TrabajadorFormState>(emptyTrabajadorForm);
+  const [categoryEditForm, setCategoryEditForm] = useState<CategoryFormState>({ nombreCategoria: '' });
+  const [imageEditForm, setImageEditForm] = useState<ProductImageFormState>(emptyImageForm);
 
   const backendUrl = useMemo(() => apiBaseUrl, []);
 
@@ -162,6 +194,12 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const syncPath = () => setPath(window.location.pathname);
+    window.addEventListener('popstate', syncPath);
+    return () => window.removeEventListener('popstate', syncPath);
+  }, []);
+
+  useEffect(() => {
     if (session?.rol) setActiveView(normalizeView(session.rol));
   }, [session]);
 
@@ -170,13 +208,19 @@ export default function App() {
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
   }, [inventories]);
 
+  const routeProductId = path.match(/^\/producto\/(\d+)/)?.[1];
+  const selectedRouteProduct = routeProductId ? products.find((product) => product.id === Number(routeProductId)) : null;
+
   const visibleProducts = products.filter((product) => {
     const text = `${product.nombreProducto} ${product.marca ?? ''} ${product.codigoSku ?? ''} ${product.categoriaNombre ?? ''}`.toLowerCase();
-    const matchesSearch = text.includes(search.toLowerCase());
+    const matchesSearch = text.includes(storeSearchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'todos' || String(product.categoriaId) === selectedCategory || product.categoriaNombre === selectedCategory;
     const matchesBranch = selectedBranch === 'todas' || inventoriesForProduct(product.id).some((item) => stockPlace(item) === selectedBranch);
     return matchesSearch && matchesCategory && matchesBranch;
   });
+
+  const sellerVisibleProducts = products.filter((product) => productMatches(product, sellerSearchQuery));
+  const adminVisibleProducts = products.filter((product) => productMatches(product, adminSearchQuery));
 
   const totalStock = inventories.reduce((sum, item) => sum + (item.stockActual ?? 0), 0);
   const webStock = inventories.filter((item) => isWebStock(item)).reduce((sum, item) => sum + item.stockActual, 0);
@@ -218,16 +262,104 @@ export default function App() {
     return label.includes('web') || label.includes('online');
   }
 
+  function productMatches(product: Product, query: string) {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) return true;
+    const text = `${product.nombreProducto} ${product.marca ?? ''} ${product.codigoSku ?? ''} ${product.categoriaNombre ?? ''}`.toLowerCase();
+    return text.includes(normalizedQuery);
+  }
+
+  function productSuggestions(value: string) {
+    const normalizedValue = value.trim().toLowerCase();
+    if (normalizedValue.length < 2) return [];
+    return products
+      .filter((product) => {
+        const name = product.nombreProducto.toLowerCase();
+        const sku = product.codigoSku?.toLowerCase() ?? '';
+        const brand = product.marca?.toLowerCase() ?? '';
+        return name.startsWith(normalizedValue) || sku.startsWith(normalizedValue) || brand.startsWith(normalizedValue) || name.includes(normalizedValue);
+      })
+      .slice(0, 6);
+  }
+
+  function goTo(pathname: string) {
+    window.history.pushState(null, '', pathname);
+    setPath(pathname);
+  }
+
   function productImage(productId: number) {
     const image = images.find((item) => item.producto?.id === productId && item.principal) ?? images.find((item) => item.producto?.id === productId);
     return image?.urlImagen || fallbackImage;
+  }
+
+  function productToForm(product: Product): ProductFormState {
+    return {
+      nombreProducto: product.nombreProducto ?? '',
+      marca: product.marca ?? '',
+      descripcion: product.descripcion ?? '',
+      precio: product.precio != null ? String(product.precio) : '',
+      unidadMedida: product.unidadMedida ?? 'unidad',
+      codigoSku: product.codigoSku ?? '',
+      categoriaId: product.categoriaId != null ? String(product.categoriaId) : '',
+      proveedorId: product.proveedorId != null ? String(product.proveedorId) : '',
+    };
+  }
+
+  function inventoryToForm(item: InventoryItem): InventoryFormState {
+    return {
+      productoId: item.productoId != null ? String(item.productoId) : '',
+      proveedorId: item.proveedorId != null ? String(item.proveedorId) : '',
+      stockActual: item.stockActual != null ? String(item.stockActual) : '',
+      stockMinimo: item.stockMinimo != null ? String(item.stockMinimo) : '0',
+      ubicacionBodega: item.ubicacionBodega ?? '',
+      sucursal: item.sucursal ?? '',
+    };
+  }
+
+  function clienteToForm(cliente: Cliente): ClienteFormState {
+    return {
+      nombre: cliente.nombre ?? '',
+      email: cliente.email ?? '',
+      contrasena: cliente.contrasena ?? '',
+      rut: cliente.rut ?? '',
+      telefono: cliente.telefono ?? '',
+      direccion: cliente.direccion ?? '',
+      comuna: cliente.comuna ?? '',
+    };
+  }
+
+  function trabajadorToForm(trabajador: Trabajador): TrabajadorFormState {
+    return {
+      nombre: trabajador.nombre ?? '',
+      email: trabajador.email ?? '',
+      contrasena: trabajador.contrasena ?? '',
+      rol: trabajador.rol ?? 'VENDEDOR',
+      activo: trabajador.activo ?? true,
+    };
+  }
+
+  function imageToForm(image: ProductImage): ProductImageFormState {
+    return {
+      productoId: image.producto?.id != null ? String(image.producto.id) : '',
+      urlImagen: image.urlImagen ?? '',
+      textoAlternativo: image.textoAlternativo ?? '',
+      principal: image.principal ?? false,
+    };
   }
 
   function addToCart(cart: CartLine[], setCart: (cart: CartLine[]) => void, product: Product, inventory: InventoryItem) {
     if (inventory.stockActual <= 0) return;
     const existing = cart.find((line) => line.productoId === product.id && line.inventarioId === inventory.idInventario);
     if (existing) {
-      setCart(cart.map((line) => (line === existing ? { ...line, cantidad: Math.min(line.cantidad + 1, inventory.stockActual) } : line)));
+      if (existing.cantidad >= inventory.stockActual) {
+        setStatusMessage(`No hay mas stock disponible para ${product.nombreProducto} en ${stockPlace(inventory)}.`);
+        return;
+      }
+      setCart(cart.map((line) => (
+        line.productoId === product.id && line.inventarioId === inventory.idInventario
+          ? { ...line, cantidad: line.cantidad + 1 }
+          : line
+      )));
       return;
     }
     setCart([
@@ -345,6 +477,73 @@ export default function App() {
     await loadData();
   };
 
+  const submitProductEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingProductId) return;
+    await api.updateProduct(Number(editingProductId), productEditForm);
+    await loadData();
+    setStatusMessage('Producto actualizado correctamente.');
+  };
+
+  const submitInventoryEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingInventoryId) return;
+    await api.updateInventory(Number(editingInventoryId), inventoryEditForm);
+    await loadData();
+    setStatusMessage('Inventario actualizado correctamente.');
+  };
+
+  const submitClienteEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingClienteId) return;
+    await api.updateCliente(Number(editingClienteId), clienteEditForm);
+    await loadData();
+    setStatusMessage('Cliente actualizado correctamente.');
+  };
+
+  const submitTrabajadorEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingTrabajadorId) return;
+    await api.updateTrabajador(Number(editingTrabajadorId), trabajadorEditForm);
+    await loadData();
+    setStatusMessage('Trabajador actualizado correctamente.');
+  };
+
+  const submitCategoryEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingCategoryId) return;
+    await api.updateCategory(Number(editingCategoryId), categoryEditForm);
+    await loadData();
+    setStatusMessage('Categoria actualizada correctamente.');
+  };
+
+  const submitImageEdit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!editingImageId) return;
+    await api.updateProductImage(Number(editingImageId), imageEditForm);
+    await loadData();
+    setStatusMessage('Imagen actualizada correctamente.');
+  };
+
+  async function deleteAdminItem(module: AdminModule, id: number) {
+    try {
+      if (module === 'productos') await api.deleteProduct(id);
+      if (module === 'inventario') await api.deleteInventory(id);
+      if (module === 'clientes') await api.deleteCliente(id);
+      if (module === 'trabajadores') await api.deleteTrabajador(id);
+      if (module === 'categorias') await api.deleteCategory(id);
+      if (module === 'imagenes') await api.deleteProductImage(id);
+      if (module === 'pedidos') {
+        setStatusMessage('Eliminar pedidos requiere endpoint dedicado; no se ejecuto ninguna accion.');
+        return;
+      }
+      await loadData();
+      setStatusMessage('Registro eliminado correctamente.');
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
+  }
+
   const allowedViews: View[] = session?.tipoUsuario === 'trabajador' ? [normalizeView(session.rol)] : ['cliente'];
 
   return (
@@ -356,11 +555,6 @@ export default function App() {
             <p className="eyebrow">FERREMAS</p>
             <h1>Ferreteria online</h1>
           </div>
-        </div>
-
-        <div className="search-box">
-          <span>Buscar</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Herramientas, pinturas, electricidad, SKU" />
         </div>
 
         <div className="header-actions">
@@ -381,9 +575,9 @@ export default function App() {
       </header>
 
       <nav className="category-strip">
-        <button className={activeView === 'cliente' ? 'active' : ''} type="button" onClick={() => setActiveView('cliente')}>Tienda</button>
+        <button className={activeView === 'cliente' ? 'active' : ''} type="button" onClick={() => { setActiveView('cliente'); goTo('/'); }}>Tienda</button>
         {allowedViews.filter((view) => view !== 'cliente').map((view) => (
-          <button key={view} className={activeView === view ? 'active' : ''} type="button" onClick={() => setActiveView(view)}>
+          <button key={view} className={activeView === view ? 'active' : ''} type="button" onClick={() => { setActiveView(view); goTo('/'); }}>
             {roleLabels[view]}
           </button>
         ))}
@@ -393,25 +587,31 @@ export default function App() {
       </nav>
 
       <main className="store-main">
-        <section className="promo-band">
-          <div>
-            <p className="eyebrow">Catalogo conectado a Supabase</p>
-            <h2>Compra herramientas con stock por comuna y web.</h2>
-            <p>Elige productos, revisa disponibilidad por sucursal/comuna y paga desde la vista cliente.</p>
-          </div>
-          <div className="promo-metrics">
-            <strong>{products.length}</strong>
-            <span>productos</span>
-          </div>
-        </section>
+        {!selectedRouteProduct && (
+          <section className="promo-band">
+            <div>
+              <p className="eyebrow">Catalogo conectado a Supabase</p>
+              <h2>Compra herramientas con stock por comuna y web.</h2>
+              <p>Elige productos, revisa disponibilidad por sucursal/comuna y paga desde la vista cliente.</p>
+            </div>
+            <div className="promo-metrics">
+              <strong>{products.length}</strong>
+              <span>productos</span>
+            </div>
+          </section>
+        )}
 
         <div className="status-banner">{statusMessage}</div>
 
-        {visibleView === 'cliente' && renderStorefront()}
-        {visibleView === 'vendedor' && renderSeller()}
-        {visibleView === 'bodeguero' && renderWarehouse()}
-        {visibleView === 'contador' && renderAccounting()}
-        {visibleView === 'admin' && renderAdmin()}
+        {selectedRouteProduct ? renderProductDetail(selectedRouteProduct) : (
+          <>
+            {visibleView === 'cliente' && renderStorefront()}
+            {visibleView === 'vendedor' && renderSeller()}
+            {visibleView === 'bodeguero' && renderWarehouse()}
+            {visibleView === 'contador' && renderAccounting()}
+            {visibleView === 'admin' && renderAdmin()}
+          </>
+        )}
       </main>
 
       {showLogin && (
@@ -437,6 +637,7 @@ export default function App() {
       <section className="shop-layout">
         <aside className="filter-panel">
           <h3>Filtros</h3>
+          {renderSearchBox(storeSearchDraft, setStoreSearchDraft, setStoreSearchQuery, 'Buscar producto o SKU')}
           <label>
             Categoria
             <select value={selectedCategory} onChange={(event) => setSelectedCategory(event.target.value)}>
@@ -470,7 +671,7 @@ export default function App() {
             const availableInventories = productInventories.filter((item) => item.stockActual > 0);
             const selectedInventory = availableInventories.find((item) => isWebStock(item)) ?? availableInventories[0];
             return (
-              <article className="product-card" key={product.id}>
+              <article className="product-card clickable-card" key={product.id} onClick={() => goTo(`/producto/${product.id}`)}>
                 <div className="image-wrap">
                   <img src={productImage(product.id)} alt={product.nombreProducto} />
                   <span>{product.categoriaNombre ?? product.marca ?? 'FERREMAS'}</span>
@@ -487,7 +688,15 @@ export default function App() {
                       </span>
                     ))}
                   </div>
-                  <button className="primary-button" type="button" disabled={!selectedInventory || !session} onClick={() => selectedInventory && addToCart(clientCart, setClientCart, product, selectedInventory)}>
+                  <button
+                    className="primary-button"
+                    type="button"
+                    disabled={!selectedInventory || !session}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (selectedInventory) addToCart(clientCart, setClientCart, product, selectedInventory);
+                    }}
+                  >
                     Agregar al carro
                   </button>
                 </div>
@@ -505,6 +714,7 @@ export default function App() {
     return (
       <section className="work-layout">
         <div className="toolbar-row">
+          {renderSearchBox(sellerSearchDraft, setSellerSearchDraft, setSellerSearchQuery, 'Buscar producto para vender')}
           <select value={selectedSellerClienteId} onChange={(event) => setSelectedSellerClienteId(event.target.value)}>
             <option value="">Cliente</option>
             {clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>)}
@@ -519,14 +729,26 @@ export default function App() {
           <table>
             <thead><tr><th>Producto</th><th>Precio</th><th>Inventario comuna/web</th><th>Accion</th></tr></thead>
             <tbody>
-              {visibleProducts.map((product) => {
+              {sellerVisibleProducts.map((product) => {
                 const firstInventory = inventoriesForProduct(product.id).find((item) => item.stockActual > 0);
                 return (
-                  <tr key={product.id}>
+                  <tr key={product.id} onClick={() => goTo(`/producto/${product.id}`)}>
                     <td>{product.nombreProducto}</td>
                     <td>{money(product.precio)}</td>
                     <td>{inventoriesForProduct(product.id).map((item) => `${isWebStock(item) ? 'Web' : stockPlace(item)}: ${item.stockActual}`).join(' / ') || 'Sin stock'}</td>
-                    <td><button className="edit-button" type="button" disabled={!firstInventory} onClick={() => firstInventory && addToCart(sellerCart, setSellerCart, product, firstInventory)}>Vender</button></td>
+                    <td>
+                      <button
+                        className="edit-button"
+                        type="button"
+                        disabled={!firstInventory}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          if (firstInventory) addToCart(sellerCart, setSellerCart, product, firstInventory);
+                        }}
+                      >
+                        Vender
+                      </button>
+                    </td>
                   </tr>
                 );
               })}
@@ -607,83 +829,478 @@ export default function App() {
   function renderAdmin() {
     return (
       <section className="admin-stack">
-        <div className="stats-row">
-          <article className="panel-card metric-card"><p className="sidebar-label">Productos</p><strong>{products.length}</strong></article>
-          <article className="panel-card metric-card"><p className="sidebar-label">Clientes</p><strong>{clientes.length}</strong></article>
-          <article className="panel-card metric-card"><p className="sidebar-label">Trabajadores</p><strong>{trabajadores.length}</strong></article>
-          <article className="panel-card metric-card"><p className="sidebar-label">Pedidos</p><strong>{orders.length}</strong></article>
+        <div className="admin-module-grid">
+          {adminModules.map((module) => (
+            <article className={`panel-card admin-module-card ${expandedAdminModule === module.key ? 'active' : ''}`} key={module.key}>
+              <button
+                className="module-main-button"
+                type="button"
+                onClick={() => {
+                  setExpandedAdminModule(expandedAdminModule === module.key ? null : module.key);
+                  setAdminAction('ver');
+                }}
+              >
+                <span>{module.label}</span>
+                <strong>{adminModuleCount(module.key)}</strong>
+              </button>
+              <p>{module.description}</p>
+              {expandedAdminModule === module.key && (
+                <div className="admin-action-row">
+                  {(['ver', 'agregar', 'modificar', 'eliminar'] as AdminAction[]).map((action) => (
+                    <button
+                      key={action}
+                      className={adminAction === action ? 'active' : ''}
+                      type="button"
+                      disabled={module.key === 'pedidos' && (action === 'agregar' || action === 'modificar')}
+                      onClick={() => setAdminAction(action)}
+                    >
+                      {action}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </article>
+          ))}
         </div>
 
-        <section className="panel-grid">
-          <article className="panel-card form-card">
-            <h3>Nuevo producto</h3>
-            <form onSubmit={submitProduct} className="form-grid">
-              <input required placeholder="Nombre" value={productForm.nombreProducto} onChange={(event) => setProductForm({ ...productForm, nombreProducto: event.target.value })} />
-              <input placeholder="Marca" value={productForm.marca} onChange={(event) => setProductForm({ ...productForm, marca: event.target.value })} />
-              <input placeholder="Descripcion" value={productForm.descripcion} onChange={(event) => setProductForm({ ...productForm, descripcion: event.target.value })} />
-              <input required type="number" min="0" placeholder="Precio" value={productForm.precio} onChange={(event) => setProductForm({ ...productForm, precio: event.target.value })} />
-              <input placeholder="SKU" value={productForm.codigoSku} onChange={(event) => setProductForm({ ...productForm, codigoSku: event.target.value })} />
-              <input placeholder="Unidad" value={productForm.unidadMedida} onChange={(event) => setProductForm({ ...productForm, unidadMedida: event.target.value })} />
-              <input type="number" placeholder="Categoria ID" value={productForm.categoriaId} onChange={(event) => setProductForm({ ...productForm, categoriaId: event.target.value })} />
-              <input type="number" placeholder="Proveedor ID" value={productForm.proveedorId} onChange={(event) => setProductForm({ ...productForm, proveedorId: event.target.value })} />
-              <button className="primary-button" type="submit">Crear producto</button>
-            </form>
-          </article>
-          <article className="panel-card form-card">
-            <h3>Imagen de producto</h3>
-            <form onSubmit={submitImage} className="form-grid">
-              <input required type="number" placeholder="Producto ID" value={imageForm.productoId} onChange={(event) => setImageForm({ ...imageForm, productoId: event.target.value })} />
-              <input required placeholder="URL imagen" value={imageForm.urlImagen} onChange={(event) => setImageForm({ ...imageForm, urlImagen: event.target.value })} />
-              <input placeholder="Texto alternativo" value={imageForm.textoAlternativo} onChange={(event) => setImageForm({ ...imageForm, textoAlternativo: event.target.value })} />
-              <label className="checkbox-row"><input type="checkbox" checked={imageForm.principal} onChange={(event) => setImageForm({ ...imageForm, principal: event.target.checked })} /> Principal</label>
-              <button className="primary-button" type="submit">Guardar imagen</button>
-            </form>
-          </article>
-        </section>
+        {expandedAdminModule && renderAdminActionPanel(expandedAdminModule)}
+      </section>
+    );
+  }
 
-        <section className="panel-grid">
-          <article className="panel-card form-card">
-            <h3>Nuevo cliente</h3>
-            <form onSubmit={submitCliente} className="form-grid">
-              <input required placeholder="Nombre" value={clienteForm.nombre} onChange={(event) => setClienteForm({ ...clienteForm, nombre: event.target.value })} />
-              <input required type="email" placeholder="Email" value={clienteForm.email} onChange={(event) => setClienteForm({ ...clienteForm, email: event.target.value })} />
-              <input required type="password" placeholder="Contrasena" value={clienteForm.contrasena} onChange={(event) => setClienteForm({ ...clienteForm, contrasena: event.target.value })} />
-              <input placeholder="RUT" value={clienteForm.rut} onChange={(event) => setClienteForm({ ...clienteForm, rut: event.target.value })} />
-              <input placeholder="Telefono" value={clienteForm.telefono} onChange={(event) => setClienteForm({ ...clienteForm, telefono: event.target.value })} />
-              <input placeholder="Direccion" value={clienteForm.direccion} onChange={(event) => setClienteForm({ ...clienteForm, direccion: event.target.value })} />
-              <input placeholder="Comuna" value={clienteForm.comuna} onChange={(event) => setClienteForm({ ...clienteForm, comuna: event.target.value })} />
-              <button className="primary-button" type="submit">Crear cliente</button>
-            </form>
-          </article>
-          <article className="panel-card form-card">
-            <h3>Nuevo trabajador</h3>
-            <form onSubmit={submitTrabajador} className="form-grid">
-              <input required placeholder="Nombre" value={trabajadorForm.nombre} onChange={(event) => setTrabajadorForm({ ...trabajadorForm, nombre: event.target.value })} />
-              <input required type="email" placeholder="Email" value={trabajadorForm.email} onChange={(event) => setTrabajadorForm({ ...trabajadorForm, email: event.target.value })} />
-              <input required type="password" placeholder="Contrasena" value={trabajadorForm.contrasena} onChange={(event) => setTrabajadorForm({ ...trabajadorForm, contrasena: event.target.value })} />
-              <select value={trabajadorForm.rol} onChange={(event) => setTrabajadorForm({ ...trabajadorForm, rol: event.target.value })}>
-                <option value="VENDEDOR">Vendedor</option>
-                <option value="BODEGUERO">Bodeguero</option>
-                <option value="CONTADOR">Contador</option>
-                <option value="ADMIN">Admin</option>
-              </select>
-              <button className="primary-button" type="submit">Crear trabajador</button>
-            </form>
-          </article>
-        </section>
+  function adminModuleCount(module: AdminModule) {
+    const counts: Record<AdminModule, number> = {
+      productos: products.length,
+      inventario: inventories.length,
+      clientes: clientes.length,
+      trabajadores: trabajadores.length,
+      pedidos: orders.length,
+      categorias: categories.length,
+      imagenes: images.length,
+    };
+    return counts[module];
+  }
 
-        <article className="panel-card form-card">
-          <h3>Nueva categoria</h3>
-          <form onSubmit={submitCategory} className="form-grid inline-form">
-            <input required placeholder="Nombre categoria" value={categoryForm.nombreCategoria} onChange={(event) => setCategoryForm({ nombreCategoria: event.target.value })} />
-            <button className="primary-button" type="submit">Crear categoria</button>
-          </form>
+  function renderAdminActionPanel(module: AdminModule) {
+    const title = adminModules.find((item) => item.key === module)?.label ?? module;
+    return (
+      <article className="panel-card admin-action-panel">
+        <div className="card-head">
+          <h3>{title}: {adminAction}</h3>
+          {module === 'productos' && renderSearchBox(adminSearchDraft, setAdminSearchDraft, setAdminSearchQuery, 'Buscar dentro de productos')}
+        </div>
+        {adminAction === 'ver' && renderAdminView(module)}
+        {adminAction === 'agregar' && renderAdminAdd(module)}
+        {adminAction === 'modificar' && renderAdminEdit(module)}
+        {adminAction === 'eliminar' && renderAdminDelete(module)}
+      </article>
+    );
+  }
+
+  function renderAdminView(module: AdminModule) {
+    if (module === 'productos') {
+      return renderSimpleTable(['ID', 'Producto', 'SKU', 'Precio', 'Categoria'], adminVisibleProducts.map((product) => [
+        product.id,
+        product.nombreProducto,
+        product.codigoSku ?? '-',
+        money(product.precio),
+        product.categoriaNombre ?? '-',
+      ]));
+    }
+    if (module === 'inventario') {
+      return renderSimpleTable(['ID', 'Producto', 'Bodega/Sucursal', 'Stock', 'Minimo'], inventories.map((item) => [
+        item.idInventario,
+        item.nombreProducto ?? item.productoId ?? '-',
+        stockPlace(item),
+        item.stockActual,
+        item.stockMinimo,
+      ]));
+    }
+    if (module === 'clientes') {
+      return renderSimpleTable(['ID', 'Nombre', 'Email', 'Telefono', 'Comuna'], clientes.map((cliente) => [
+        cliente.id,
+        cliente.nombre,
+        cliente.email,
+        cliente.telefono ?? '-',
+        cliente.comuna ?? '-',
+      ]));
+    }
+    if (module === 'trabajadores') {
+      return renderSimpleTable(['ID', 'Nombre', 'Email', 'Rol', 'Activo'], trabajadores.map((worker) => [
+        worker.id,
+        worker.nombre,
+        worker.email,
+        worker.rol,
+        worker.activo ? 'Si' : 'No',
+      ]));
+    }
+    if (module === 'pedidos') {
+      return renderSimpleTable(['ID', 'Cliente', 'Estado', 'Pago', 'Total'], orders.map((order) => [
+        order.idPedido,
+        order.cliente?.nombre ?? '-',
+        order.estadoPedido?.nombreEstado ?? '-',
+        order.metodoPago ?? '-',
+        money(order.total),
+      ]));
+    }
+    if (module === 'categorias') {
+      return renderSimpleTable(['ID', 'Nombre'], categories.map((category) => [category.id, category.nombreCategoria]));
+    }
+    return renderSimpleTable(['ID', 'Producto', 'URL', 'Principal'], images.map((image) => [
+      image.idImagen,
+      image.producto?.nombreProducto ?? image.producto?.id ?? '-',
+      image.urlImagen,
+      image.principal ? 'Si' : 'No',
+    ]));
+  }
+
+  function renderAdminAdd(module: AdminModule) {
+    if (module === 'productos') return renderProductForm(productForm, setProductForm, submitProduct, 'Crear producto');
+    if (module === 'inventario') return renderInventoryForm(inventoryForm, setInventoryForm, submitInventory, 'Guardar inventario');
+    if (module === 'clientes') return renderClienteForm(clienteForm, setClienteForm, submitCliente, 'Crear cliente');
+    if (module === 'trabajadores') return renderTrabajadorForm(trabajadorForm, setTrabajadorForm, submitTrabajador, 'Crear trabajador');
+    if (module === 'categorias') {
+      return (
+        <form onSubmit={submitCategory} className="form-grid inline-form">
+          <input required placeholder="Nombre categoria" value={categoryForm.nombreCategoria} onChange={(event) => setCategoryForm({ nombreCategoria: event.target.value })} />
+          <button className="primary-button" type="submit">Crear categoria</button>
+        </form>
+      );
+    }
+    if (module === 'imagenes') return renderImageForm(imageForm, setImageForm, submitImage, 'Guardar imagen');
+    return <p className="muted-copy">Los pedidos se generan desde ventas o checkout.</p>;
+  }
+
+  function renderAdminEdit(module: AdminModule) {
+    if (module === 'productos') {
+      return (
+        <div className="admin-edit-block">
+          <select value={editingProductId} onChange={(event) => {
+            setEditingProductId(event.target.value);
+            const product = products.find((item) => item.id === Number(event.target.value));
+            if (product) setProductEditForm(productToForm(product));
+          }}>
+            <option value="">Selecciona producto</option>
+            {products.map((product) => <option key={product.id} value={product.id}>{product.nombreProducto}</option>)}
+          </select>
+          {editingProductId && renderProductForm(productEditForm, setProductEditForm, submitProductEdit, 'Actualizar producto')}
+        </div>
+      );
+    }
+    if (module === 'inventario') {
+      return (
+        <div className="admin-edit-block">
+          <select value={editingInventoryId} onChange={(event) => {
+            setEditingInventoryId(event.target.value);
+            const item = inventories.find((inventory) => inventory.idInventario === Number(event.target.value));
+            if (item) setInventoryEditForm(inventoryToForm(item));
+          }}>
+            <option value="">Selecciona inventario</option>
+            {inventories.map((item) => <option key={item.idInventario} value={item.idInventario}>{item.nombreProducto ?? item.productoId} - {stockPlace(item)}</option>)}
+          </select>
+          {editingInventoryId && renderInventoryForm(inventoryEditForm, setInventoryEditForm, submitInventoryEdit, 'Actualizar inventario')}
+        </div>
+      );
+    }
+    if (module === 'clientes') {
+      return (
+        <div className="admin-edit-block">
+          <select value={editingClienteId} onChange={(event) => {
+            setEditingClienteId(event.target.value);
+            const cliente = clientes.find((item) => item.id === Number(event.target.value));
+            if (cliente) setClienteEditForm(clienteToForm(cliente));
+          }}>
+            <option value="">Selecciona cliente</option>
+            {clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>)}
+          </select>
+          {editingClienteId && renderClienteForm(clienteEditForm, setClienteEditForm, submitClienteEdit, 'Actualizar cliente')}
+        </div>
+      );
+    }
+    if (module === 'trabajadores') {
+      return (
+        <div className="admin-edit-block">
+          <select value={editingTrabajadorId} onChange={(event) => {
+            setEditingTrabajadorId(event.target.value);
+            const worker = trabajadores.find((item) => item.id === Number(event.target.value));
+            if (worker) setTrabajadorEditForm(trabajadorToForm(worker));
+          }}>
+            <option value="">Selecciona trabajador</option>
+            {trabajadores.map((worker) => <option key={worker.id} value={worker.id}>{worker.nombre}</option>)}
+          </select>
+          {editingTrabajadorId && renderTrabajadorForm(trabajadorEditForm, setTrabajadorEditForm, submitTrabajadorEdit, 'Actualizar trabajador')}
+        </div>
+      );
+    }
+    if (module === 'categorias') {
+      return (
+        <form onSubmit={submitCategoryEdit} className="form-grid inline-form">
+          <select required value={editingCategoryId} onChange={(event) => {
+            setEditingCategoryId(event.target.value);
+            const category = categories.find((item) => item.id === Number(event.target.value));
+            setCategoryEditForm({ nombreCategoria: category?.nombreCategoria ?? '' });
+          }}>
+            <option value="">Selecciona categoria</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.nombreCategoria}</option>)}
+          </select>
+          <input required placeholder="Nombre categoria" value={categoryEditForm.nombreCategoria} onChange={(event) => setCategoryEditForm({ nombreCategoria: event.target.value })} />
+          <button className="primary-button" type="submit">Actualizar categoria</button>
+        </form>
+      );
+    }
+    if (module === 'imagenes') {
+      return (
+        <div className="admin-edit-block">
+          <select value={editingImageId} onChange={(event) => {
+            setEditingImageId(event.target.value);
+            const image = images.find((item) => item.idImagen === Number(event.target.value));
+            if (image) setImageEditForm(imageToForm(image));
+          }}>
+            <option value="">Selecciona imagen</option>
+            {images.map((image) => <option key={image.idImagen} value={image.idImagen}>{image.producto?.nombreProducto ?? image.urlImagen}</option>)}
+          </select>
+          {editingImageId && renderImageForm(imageEditForm, setImageEditForm, submitImageEdit, 'Actualizar imagen')}
+        </div>
+      );
+    }
+    return <p className="muted-copy">Los pedidos se modifican desde su flujo operativo.</p>;
+  }
+
+  function renderAdminDelete(module: AdminModule) {
+    const rows: Array<{ id: number; label: string }> =
+      module === 'productos' ? products.map((item) => ({ id: item.id, label: item.nombreProducto })) :
+      module === 'inventario' ? inventories.map((item) => ({ id: item.idInventario, label: `${item.nombreProducto ?? item.productoId} - ${stockPlace(item)}` })) :
+      module === 'clientes' ? clientes.map((item) => ({ id: item.id, label: item.nombre })) :
+      module === 'trabajadores' ? trabajadores.map((item) => ({ id: item.id, label: item.nombre })) :
+      module === 'pedidos' ? orders.map((item) => ({ id: item.idPedido, label: `Pedido #${item.idPedido}` })) :
+      module === 'categorias' ? categories.map((item) => ({ id: item.id, label: item.nombreCategoria })) :
+      images.map((item) => ({ id: item.idImagen, label: item.producto?.nombreProducto ?? item.urlImagen }));
+
+    return (
+      <div className="delete-list">
+        {rows.map((row) => (
+          <div className="delete-row" key={row.id}>
+            <span>{row.label}</span>
+            <button className="danger-button" type="button" onClick={() => deleteAdminItem(module, row.id)}>Eliminar</button>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  function renderSimpleTable(headers: string[], rows: Array<Array<string | number>>) {
+    return (
+      <div className="table-wrap">
+        <table>
+          <thead><tr>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  function renderProductForm(form: ProductFormState, setForm: (value: ProductFormState) => void, onSubmit: (event: FormEvent<HTMLFormElement>) => void, buttonLabel: string) {
+    return (
+      <form onSubmit={onSubmit} className="form-grid">
+        <input required placeholder="Nombre" value={form.nombreProducto} onChange={(event) => setForm({ ...form, nombreProducto: event.target.value })} />
+        <input placeholder="Marca" value={form.marca} onChange={(event) => setForm({ ...form, marca: event.target.value })} />
+        <input placeholder="Descripcion" value={form.descripcion} onChange={(event) => setForm({ ...form, descripcion: event.target.value })} />
+        <input required type="number" min="0" placeholder="Precio" value={form.precio} onChange={(event) => setForm({ ...form, precio: event.target.value })} />
+        <input placeholder="SKU" value={form.codigoSku} onChange={(event) => setForm({ ...form, codigoSku: event.target.value })} />
+        <input placeholder="Unidad" value={form.unidadMedida} onChange={(event) => setForm({ ...form, unidadMedida: event.target.value })} />
+        <input type="number" placeholder="Categoria ID" value={form.categoriaId} onChange={(event) => setForm({ ...form, categoriaId: event.target.value })} />
+        <input type="number" placeholder="Proveedor ID" value={form.proveedorId} onChange={(event) => setForm({ ...form, proveedorId: event.target.value })} />
+        <button className="primary-button" type="submit">{buttonLabel}</button>
+      </form>
+    );
+  }
+
+  function renderInventoryForm(form: InventoryFormState, setForm: (value: InventoryFormState) => void, onSubmit: (event: FormEvent<HTMLFormElement>) => void, buttonLabel: string) {
+    return (
+      <form onSubmit={onSubmit} className="form-grid">
+        <input required type="number" placeholder="Producto ID" value={form.productoId} onChange={(event) => setForm({ ...form, productoId: event.target.value })} />
+        <input placeholder="Comuna, sucursal o Web" value={form.sucursal} onChange={(event) => setForm({ ...form, sucursal: event.target.value })} />
+        <input required type="number" min="0" placeholder="Stock actual" value={form.stockActual} onChange={(event) => setForm({ ...form, stockActual: event.target.value })} />
+        <input type="number" min="0" placeholder="Stock minimo" value={form.stockMinimo} onChange={(event) => setForm({ ...form, stockMinimo: event.target.value })} />
+        <input placeholder="Ubicacion bodega" value={form.ubicacionBodega} onChange={(event) => setForm({ ...form, ubicacionBodega: event.target.value })} />
+        <input type="number" placeholder="Proveedor ID" value={form.proveedorId} onChange={(event) => setForm({ ...form, proveedorId: event.target.value })} />
+        <button className="primary-button" type="submit">{buttonLabel}</button>
+      </form>
+    );
+  }
+
+  function renderClienteForm(form: ClienteFormState, setForm: (value: ClienteFormState) => void, onSubmit: (event: FormEvent<HTMLFormElement>) => void, buttonLabel: string) {
+    return (
+      <form onSubmit={onSubmit} className="form-grid">
+        <input required placeholder="Nombre" value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
+        <input required type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        <input required type="password" placeholder="Contrasena" value={form.contrasena} onChange={(event) => setForm({ ...form, contrasena: event.target.value })} />
+        <input placeholder="RUT" value={form.rut} onChange={(event) => setForm({ ...form, rut: event.target.value })} />
+        <input placeholder="Telefono" value={form.telefono} onChange={(event) => setForm({ ...form, telefono: event.target.value })} />
+        <input placeholder="Direccion" value={form.direccion} onChange={(event) => setForm({ ...form, direccion: event.target.value })} />
+        <input placeholder="Comuna" value={form.comuna} onChange={(event) => setForm({ ...form, comuna: event.target.value })} />
+        <button className="primary-button" type="submit">{buttonLabel}</button>
+      </form>
+    );
+  }
+
+  function renderTrabajadorForm(form: TrabajadorFormState, setForm: (value: TrabajadorFormState) => void, onSubmit: (event: FormEvent<HTMLFormElement>) => void, buttonLabel: string) {
+    return (
+      <form onSubmit={onSubmit} className="form-grid">
+        <input required placeholder="Nombre" value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
+        <input required type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
+        <input required type="password" placeholder="Contrasena" value={form.contrasena} onChange={(event) => setForm({ ...form, contrasena: event.target.value })} />
+        <select value={form.rol} onChange={(event) => setForm({ ...form, rol: event.target.value })}>
+          <option value="VENDEDOR">Vendedor</option>
+          <option value="BODEGUERO">Bodeguero</option>
+          <option value="CONTADOR">Contador</option>
+          <option value="ADMIN">Admin</option>
+        </select>
+        <label className="checkbox-row"><input type="checkbox" checked={form.activo} onChange={(event) => setForm({ ...form, activo: event.target.checked })} /> Activo</label>
+        <button className="primary-button" type="submit">{buttonLabel}</button>
+      </form>
+    );
+  }
+
+  function renderImageForm(form: ProductImageFormState, setForm: (value: ProductImageFormState) => void, onSubmit: (event: FormEvent<HTMLFormElement>) => void, buttonLabel: string) {
+    return (
+      <form onSubmit={onSubmit} className="form-grid">
+        <input required type="number" placeholder="Producto ID" value={form.productoId} onChange={(event) => setForm({ ...form, productoId: event.target.value })} />
+        <input required placeholder="URL imagen" value={form.urlImagen} onChange={(event) => setForm({ ...form, urlImagen: event.target.value })} />
+        <input placeholder="Texto alternativo" value={form.textoAlternativo} onChange={(event) => setForm({ ...form, textoAlternativo: event.target.value })} />
+        <label className="checkbox-row"><input type="checkbox" checked={form.principal} onChange={(event) => setForm({ ...form, principal: event.target.checked })} /> Principal</label>
+        <button className="primary-button" type="submit">{buttonLabel}</button>
+      </form>
+    );
+  }
+
+  function renderProductDetail(product: Product) {
+    const productInventories = inventoriesForProduct(product.id);
+    const availableInventories = productInventories.filter((item) => item.stockActual > 0);
+    const selectedInventory = availableInventories.find((item) => isWebStock(item)) ?? availableInventories[0];
+
+    return (
+      <section className="product-detail-page">
+        <button className="ghost-button back-button" type="button" onClick={() => goTo('/')}>Volver al catalogo</button>
+        <article className="product-detail-hero">
+          <div className="detail-image">
+            <img src={productImage(product.id)} alt={product.nombreProducto} />
+          </div>
+          <div className="detail-info">
+            <p className="eyebrow">{product.categoriaNombre ?? product.marca ?? 'FERREMAS'}</p>
+            <h2>{product.nombreProducto}</h2>
+            <p>{product.descripcion ?? 'Producto disponible para compra y venta asistida.'}</p>
+            <div className="detail-meta">
+              <span>SKU: {product.codigoSku ?? 'No registrado'}</span>
+              <span>Marca: {product.marca ?? 'Sin marca'}</span>
+              <span>Unidad: {product.unidadMedida ?? 'unidad'}</span>
+              <span>Proveedor: {product.proveedorNombre ?? 'Sin proveedor'}</span>
+            </div>
+            <strong className="detail-price">{money(product.precio)}</strong>
+            <button className="primary-button" type="button" disabled={!selectedInventory || !session} onClick={() => selectedInventory && addToCart(clientCart, setClientCart, product, selectedInventory)}>
+              Agregar al carro
+            </button>
+          </div>
+        </article>
+
+        <article className="panel-card">
+          <div className="card-head">
+            <h3>Inventarios por bodega</h3>
+            <span>{productInventories.length}</span>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr><th>Bodega/Sucursal</th><th>Ubicacion</th><th>Stock actual</th><th>Stock minimo</th><th>Proveedor</th></tr>
+              </thead>
+              <tbody>
+                {productInventories.map((item) => (
+                  <tr key={item.idInventario}>
+                    <td>{isWebStock(item) ? 'Web' : stockPlace(item)}</td>
+                    <td>{item.ubicacionBodega ?? '-'}</td>
+                    <td>{item.stockActual}</td>
+                    <td>{item.stockMinimo}</td>
+                    <td>{item.nombreProveedor ?? item.proveedorId ?? '-'}</td>
+                  </tr>
+                ))}
+                {productInventories.length === 0 && (
+                  <tr><td colSpan={5}>No hay inventario registrado para este producto.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </article>
       </section>
     );
   }
 
+  function renderSearchBox(
+    draft: string,
+    setDraft: (value: string) => void,
+    setQuery: (value: string) => void,
+    placeholder: string,
+  ) {
+    const suggestions = productSuggestions(draft);
+    return (
+      <div className="local-search">
+        <input
+          value={draft}
+          placeholder={placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              setQuery(draft);
+            }
+          }}
+        />
+        {suggestions.length > 0 && (
+          <div className="suggestions-list">
+            {suggestions.map((product) => (
+              <button
+                key={product.id}
+                type="button"
+                onClick={() => {
+                  setDraft(product.nombreProducto);
+                  setQuery(product.nombreProducto);
+                }}
+              >
+                <span>{product.nombreProducto}</span>
+                <small>{product.codigoSku ?? product.marca ?? 'FERREMAS'}</small>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   function renderCart(cart: CartLine[], setCart: (cart: CartLine[]) => void, total: number, onPay: () => void, title: string) {
+    const updateQuantity = (line: CartLine, nextQuantity: number) => {
+      const inventory = inventories.find((item) => item.idInventario === line.inventarioId);
+      const maxQuantity = inventory?.stockActual ?? Number.MAX_SAFE_INTEGER;
+      const safeQuantity = Math.max(0, Math.min(nextQuantity, maxQuantity));
+
+      if (safeQuantity === 0) {
+        setCart(cart.filter((item) => !(item.productoId === line.productoId && item.inventarioId === line.inventarioId)));
+        return;
+      }
+
+      if (nextQuantity > maxQuantity) {
+        setStatusMessage(`Stock maximo disponible: ${maxQuantity} unidades para ${line.nombre}.`);
+      }
+
+      setCart(cart.map((item) => (
+        item.productoId === line.productoId && item.inventarioId === line.inventarioId
+          ? { ...item, cantidad: safeQuantity }
+          : item
+      )));
+    };
+
     return (
       <article className="panel-card cart-card">
         <div className="card-head">
@@ -697,7 +1314,11 @@ export default function App() {
                 <strong>{line.nombre}</strong>
                 <p>{line.sucursal ?? 'Web'} - {money(line.precio)}</p>
               </div>
-              <input min="1" type="number" value={line.cantidad} onChange={(event) => setCart(cart.map((item) => (item === line ? { ...item, cantidad: Number(event.target.value) } : item)))} />
+              <div className="quantity-control">
+                <button type="button" onClick={() => updateQuantity(line, line.cantidad - 1)}>-</button>
+                <input min="1" type="number" value={line.cantidad} onChange={(event) => updateQuantity(line, Number(event.target.value))} />
+                <button type="button" onClick={() => updateQuantity(line, line.cantidad + 1)}>+</button>
+              </div>
             </div>
           ))}
         </div>

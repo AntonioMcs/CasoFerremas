@@ -66,6 +66,23 @@ export const api = {
     });
   },
 
+  async updateProduct(id: number, form: ProductFormState): Promise<void> {
+    await client.put(`/api/v1/productos/${id}`, {
+      nombreProducto: form.nombreProducto,
+      marca: form.marca || null,
+      descripcion: form.descripcion || null,
+      precio: Number(form.precio),
+      unidadMedida: form.unidadMedida || null,
+      codigoSku: form.codigoSku || null,
+      categoriaId: toNumber(form.categoriaId),
+      proveedorId: toNumber(form.proveedorId),
+    });
+  },
+
+  async deleteProduct(id: number): Promise<void> {
+    await client.delete(`/api/v1/productos/${id}`);
+  },
+
   async getProductImages(): Promise<ProductImage[]> {
     const { data } = await client.get('/api/v1/productos-imagenes');
     return Array.isArray(data) ? data : [];
@@ -78,6 +95,19 @@ export const api = {
       textoAlternativo: form.textoAlternativo || null,
       principal: form.principal,
     });
+  },
+
+  async updateProductImage(id: number, form: ProductImageFormState): Promise<void> {
+    await client.put(`/api/v1/productos-imagenes/${id}`, {
+      productoId: Number(form.productoId),
+      urlImagen: form.urlImagen,
+      textoAlternativo: form.textoAlternativo || null,
+      principal: form.principal,
+    });
+  },
+
+  async deleteProductImage(id: number): Promise<void> {
+    await client.delete(`/api/v1/productos-imagenes/${id}`);
   },
 
   async getInventories(): Promise<InventoryItem[]> {
@@ -96,6 +126,21 @@ export const api = {
     });
   },
 
+  async updateInventory(id: number, form: InventoryFormState): Promise<void> {
+    await client.put(`/api/v1/inventarios/${id}`, {
+      productoId: Number(form.productoId),
+      proveedorId: toNumber(form.proveedorId),
+      stockActual: Number(form.stockActual),
+      stockMinimo: Number(form.stockMinimo),
+      ubicacionBodega: form.ubicacionBodega || null,
+      sucursal: form.sucursal || null,
+    });
+  },
+
+  async deleteInventory(id: number): Promise<void> {
+    await client.delete(`/api/v1/inventarios/${id}`);
+  },
+
   async getClientes(): Promise<Cliente[]> {
     const { data } = await client.get('/api/v1/clientes');
     return Array.isArray(data) ? data : [];
@@ -103,6 +148,14 @@ export const api = {
 
   async createCliente(form: ClienteFormState): Promise<void> {
     await client.post('/api/v1/clientes', form);
+  },
+
+  async updateCliente(id: number, form: ClienteFormState): Promise<void> {
+    await client.put(`/api/v1/clientes/${id}`, form);
+  },
+
+  async deleteCliente(id: number): Promise<void> {
+    await client.delete(`/api/v1/clientes/${id}`);
   },
 
   async getTrabajadores(): Promise<Trabajador[]> {
@@ -114,6 +167,14 @@ export const api = {
     await client.post('/api/v1/trabajadores', form);
   },
 
+  async updateTrabajador(id: number, form: TrabajadorFormState): Promise<void> {
+    await client.put(`/api/v1/trabajadores/${id}`, form);
+  },
+
+  async deleteTrabajador(id: number): Promise<void> {
+    await client.delete(`/api/v1/trabajadores/${id}`);
+  },
+
   async getCategories(): Promise<CategoryItem[]> {
     const { data } = await client.get('/api/v1/categorias');
     return Array.isArray(data) ? data : [];
@@ -121,6 +182,14 @@ export const api = {
 
   async createCategory(form: CategoryFormState): Promise<void> {
     await client.post('/api/v1/categorias', form);
+  },
+
+  async updateCategory(id: number, form: CategoryFormState): Promise<void> {
+    await client.put(`/api/v1/categorias/${id}`, form);
+  },
+
+  async deleteCategory(id: number): Promise<void> {
+    await client.delete(`/api/v1/categorias/${id}`);
   },
 
   async getOrders(): Promise<OrderItem[]> {
