@@ -6,12 +6,14 @@ import type {
   ClienteFormState,
   InventoryFormState,
   InventoryItem,
+  LoginRequest,
   OrderItem,
   Product,
   ProductFormState,
   ProductImage,
   ProductImageFormState,
   SaleRequest,
+  SessionUser,
   Trabajador,
   TrabajadorFormState,
 } from './types';
@@ -22,11 +24,30 @@ const client = axios.create({
   baseURL: apiBaseUrl,
 });
 
+export function getApiErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    if (typeof data === 'string') return data;
+    if (data && typeof data === 'object') {
+      const record = data as Record<string, unknown>;
+      return String(record.causa ?? record.message ?? record.error ?? error.message);
+    }
+    return error.message;
+  }
+
+  return error instanceof Error ? error.message : 'Error inesperado.';
+}
+
 function toNumber(value: string) {
   return value.trim() === '' ? null : Number(value);
 }
 
 export const api = {
+  async login(payload: LoginRequest): Promise<SessionUser> {
+    const { data } = await client.post('/api/v1/auth/login', payload);
+    return data;
+  },
+
   async getProducts(): Promise<Product[]> {
     const { data } = await client.get('/api/v1/productos');
     return Array.isArray(data) ? data : [];

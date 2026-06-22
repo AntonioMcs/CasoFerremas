@@ -139,3 +139,17 @@ export type SaleRequest = {
   tipoEntrega: string;
   items: SaleItem[];
 };
+
+export type LoginRequest = {
+  email: string;
+  contrasena: string;
+};
+
+export type SessionUser = {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin' | string;
+  tipoUsuario: 'cliente' | 'trabajador' | string;
+  comuna?: string | null;
+};

@@ -48,7 +48,7 @@ public class TrabajadorController {
 
     @PostMapping
     public ResponseEntity<Trabajador> crear(@Valid @RequestBody TrabajadorDTO dto) {
-        Trabajador trabajador = new Trabajador(null, dto.getNombre(), dto.getEmail(), dto.getContrasena(), dto.getRol());
+        Trabajador trabajador = new Trabajador(null, dto.getNombre(), dto.getEmail(), dto.getContrasena(), normalizarRol(dto.getRol()));
         trabajador.setActivo(dto.getActivo() == null ? true : dto.getActivo());
         return new ResponseEntity<>(trabajadorRepository.save(trabajador), HttpStatus.CREATED);
     }
@@ -60,7 +60,7 @@ public class TrabajadorController {
                     existing.setNombre(dto.getNombre());
                     existing.setEmail(dto.getEmail());
                     existing.setContrasena(dto.getContrasena());
-                    existing.setRol(dto.getRol());
+                    existing.setRol(normalizarRol(dto.getRol()));
                     existing.setActivo(dto.getActivo() == null ? existing.getActivo() : dto.getActivo());
                     return ResponseEntity.ok(trabajadorRepository.save(existing));
                 })
@@ -74,5 +74,9 @@ public class TrabajadorController {
         }
         trabajadorRepository.deleteById(id);
         return ResponseEntity.noContent().build();
+    }
+
+    private String normalizarRol(String rol) {
+        return rol == null ? null : rol.trim().toUpperCase();
     }
 }
