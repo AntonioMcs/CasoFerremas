@@ -38,6 +38,15 @@ public class Pago extends RepresentationModel<Pago> {
     @Column(name = "estado_pago", length = 50)
     private String estadoPago;
 
+    @Column(name = "token_transbank", length = 255)
+    private String tokenTransbank;
+
+    @Column(name = "authorization_code", length = 255)
+    private String authorizationCode;
+
+    @Column(name = "url_transbank", length = 500)
+    private String urlTransbank;
+
     @Column(name = "fecha_pago")
     private LocalDateTime fechaPago;
 
@@ -89,6 +98,30 @@ public class Pago extends RepresentationModel<Pago> {
 
     public void setEstadoPago(String estadoPago) {
         this.estadoPago = estadoPago;
+    }
+
+    public String getTokenTransbank() {
+        return tokenTransbank;
+    }
+
+    public void setTokenTransbank(String tokenTransbank) {
+        this.tokenTransbank = tokenTransbank;
+    }
+
+    public String getAuthorizationCode() {
+        return authorizationCode;
+    }
+
+    public void setAuthorizationCode(String authorizationCode) {
+        this.authorizationCode = authorizationCode;
+    }
+
+    public String getUrlTransbank() {
+        return urlTransbank;
+    }
+
+    public void setUrlTransbank(String urlTransbank) {
+        this.urlTransbank = urlTransbank;
     }
 
     public LocalDateTime getFechaPago() {

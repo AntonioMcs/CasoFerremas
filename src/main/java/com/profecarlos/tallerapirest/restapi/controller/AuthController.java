@@ -2,6 +2,7 @@ package com.profecarlos.tallerapirest.restapi.controller;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +23,7 @@ public class AuthController {
 
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public AuthController(ClienteRepository clienteRepository, TrabajadorRepository trabajadorRepository) {
         this.clienteRepository = clienteRepository;
@@ -45,7 +47,13 @@ public class AuthController {
     }
 
     private boolean passwordMatches(String storedPassword, String receivedPassword) {
-        return storedPassword != null && storedPassword.equals(receivedPassword);
+        if (storedPassword == null || receivedPassword == null) {
+            return false;
+        }
+        if (storedPassword.startsWith("$2a$") || storedPassword.startsWith("$2b$") || storedPassword.startsWith("$2y$")) {
+            return passwordEncoder.matches(receivedPassword, storedPassword);
+        }
+        return storedPassword.equals(receivedPassword);
     }
 
     private ResponseEntity<LoginResponseDTO> clienteResponse(Cliente cliente) {

@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.profecarlos.tallerapirest.restapi.dto.VentaRequestDTO;
-import com.profecarlos.tallerapirest.restapi.model.Pedido;
+import com.profecarlos.tallerapirest.restapi.dto.VentaResponseDTO;
 import com.profecarlos.tallerapirest.restapi.service.VentaService;
 
 import jakarta.validation.Valid;
@@ -35,8 +35,8 @@ public class VentaController {
 
     private ResponseEntity<?> crearVenta(VentaRequestDTO dto) {
         try {
-            Pedido pedido = ventaService.crearVenta(dto);
-            return new ResponseEntity<>(pedido, HttpStatus.CREATED);
+            VentaResponseDTO response = ventaService.crearVenta(dto);
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }

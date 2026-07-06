@@ -22,6 +22,7 @@ import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
+import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
 
 @RestController
 @RequestMapping("/api/v1/pedidos")
@@ -34,13 +35,16 @@ public class PedidoController {
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
+    private final AuditLogService auditLogService;
 
     public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
-            TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository) {
+            TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
+            AuditLogService auditLogService) {
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping
@@ -65,6 +69,24 @@ public class PedidoController {
         return ResponseEntity.ok(pedidoRepository.findByMetodoPagoAndEstadoPedidoNombreEstadoIgnoreCase("transferencia", "pendiente"));
     }
 
+    @GetMapping("/estado/{nombreEstado}")
+    public ResponseEntity<List<Pedido>> listarPorEstado(@PathVariable String nombreEstado) {
+        return ResponseEntity.ok(pedidoRepository.findByEstadoPedidoNombreEstadoIgnoreCase(nombreEstado));
+    }
+
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody String nombreEstado) {
+        return pedidoRepository.findById(id).map(pedido -> {
+            String estadoNombre = nombreEstado.trim().toLowerCase();
+            EstadoPedido estado = estadoPedidoRepository.findByNombreEstadoIgnoreCase(estadoNombre)
+                    .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
+            pedido.setEstadoPedido(estado);
+            Pedido guardado = pedidoRepository.save(pedido);
+            auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
+            return ResponseEntity.ok(guardado);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public ResponseEntity<?> crear(@RequestBody PedidoDTO dto) {
         ResponseEntity<?> validacion = validarDTO(dto);
@@ -78,7 +100,9 @@ public class PedidoController {
             return resultado;
         }
         aplicarDatos(pedido, dto);
-        return new ResponseEntity<>(pedidoRepository.save(pedido), HttpStatus.CREATED);
+        Pedido guardado = pedidoRepository.save(pedido);
+        auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "CREAR", "Pedido creado", guardado.getIdPedido(), null, null);
+        return new ResponseEntity<>(guardado, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
@@ -94,7 +118,9 @@ public class PedidoController {
                 return resultado;
             }
             aplicarDatos(existing, dto);
-            return ResponseEntity.ok(pedidoRepository.save(existing));
+            Pedido actualizado = pedidoRepository.save(existing);
+            auditLogService.registrar("PEDIDO", actualizado.getIdPedido(), "ACTUALIZAR", "Pedido actualizado", actualizado.getIdPedido(), null, null);
+            return ResponseEntity.ok(actualizado);
         }).orElse(ResponseEntity.notFound().build());
     }
 

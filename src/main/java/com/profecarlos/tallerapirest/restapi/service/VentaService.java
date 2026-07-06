@@ -1,12 +1,15 @@
 package com.profecarlos.tallerapirest.restapi.service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.profecarlos.tallerapirest.restapi.dto.VentaItemDTO;
 import com.profecarlos.tallerapirest.restapi.dto.VentaRequestDTO;
+import com.profecarlos.tallerapirest.restapi.dto.VentaResponseDTO;
 import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.model.DetallePedido;
 import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
@@ -35,11 +38,13 @@ public class VentaService {
     private final PedidoRepository pedidoRepository;
     private final DetallePedidoRepository detallePedidoRepository;
     private final PagoRepository pagoRepository;
+    private final TransbankService transbankService;
 
     public VentaService(ClienteRepository clienteRepository, TrabajadorRepository trabajadorRepository,
             ProductRepository productRepository, InventarioRepository inventarioRepository,
             EstadoPedidoRepository estadoPedidoRepository, PedidoRepository pedidoRepository,
-            DetallePedidoRepository detallePedidoRepository, PagoRepository pagoRepository) {
+            DetallePedidoRepository detallePedidoRepository, PagoRepository pagoRepository,
+            TransbankService transbankService) {
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.productRepository = productRepository;
@@ -48,10 +53,11 @@ public class VentaService {
         this.pedidoRepository = pedidoRepository;
         this.detallePedidoRepository = detallePedidoRepository;
         this.pagoRepository = pagoRepository;
+        this.transbankService = transbankService;
     }
 
     @Transactional
-    public Pedido crearVenta(VentaRequestDTO dto) {
+    public VentaResponseDTO crearVenta(VentaRequestDTO dto) {
         Cliente cliente = clienteRepository.findById(dto.getClienteId())
                 .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
 
@@ -61,7 +67,8 @@ public class VentaService {
                     .orElseThrow(() -> new IllegalArgumentException("Trabajador no encontrado"));
         }
 
-        String estadoNombre = "transferencia".equals(dto.getMetodoPago()) ? "pendiente" : "pagado";
+        String metodoPago = dto.getMetodoPago() == null ? "" : dto.getMetodoPago().trim().toLowerCase(Locale.ROOT);
+        String estadoNombre = "efectivo".equals(metodoPago) ? "pagado" : "pendiente";
         EstadoPedido estado = estadoPedidoRepository.findByNombreEstado(estadoNombre)
                 .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
 
@@ -69,7 +76,7 @@ public class VentaService {
         pedido.setCliente(cliente);
         pedido.setTrabajador(trabajador);
         pedido.setEstadoPedido(estado);
-        pedido.setMetodoPago(dto.getMetodoPago());
+        pedido.setMetodoPago(metodoPago);
         pedido.setTipoEntrega(dto.getTipoEntrega());
         pedido.setTotal(BigDecimal.ZERO);
         Pedido guardado = pedidoRepository.save(pedido);
@@ -100,14 +107,58 @@ public class VentaService {
         guardado.setTotal(total);
         guardado = pedidoRepository.save(guardado);
 
+        VentaResponseDTO responseDTO = new VentaResponseDTO();
+        responseDTO.setPedido(guardado);
+
         Pago pago = new Pago();
         pago.setPedido(guardado);
-        pago.setMetodoPago(dto.getMetodoPago());
         pago.setMonto(total);
-        pago.setEstadoPago("transferencia".equals(dto.getMetodoPago()) ? "pendiente" : "pagado");
-        pagoRepository.save(pago);
+        pago.setMetodoPago("TRANSBANK");
+        pago.setEstadoPago("PENDIENTE");
+        pago.setFechaPago(LocalDateTime.now());
+        pago = pagoRepository.save(pago);
 
-        return guardado;
+        if ("tarjeta".equals(metodoPago)) {
+            String retorno = "http://localhost:5173/transbank-return?pagoId=" + pago.getIdPago();
+            try {
+                String ordenCompra = "PEDIDO_" + guardado.getIdPedido();
+                String sesionId = "SESION_" + guardado.getIdPedido();
+                TransbankTransactionResponse transbankResponse = transbankService.crearTransaccion(total, ordenCompra, sesionId, retorno);
+                String status = transbankResponse.getStatus() != null ? transbankResponse.getStatus().trim().toUpperCase(Locale.ROOT) : "PENDING";
+                pago.setEstadoPago("PENDING".equals(status) ? "PENDIENTE" : "PROCESANDO");
+                pago.setMetodoPago("TRANSBANK");
+                pago.setTokenTransbank(transbankResponse.getToken());
+                pago.setAuthorizationCode(transbankResponse.getAuthorizationCode());
+                String url = transbankResponse.getUrl();
+                if (url == null || url.isBlank()) {
+                    url = retorno + "&token=" + transbankResponse.getToken();
+                    transbankResponse.setUrl(url);
+                }
+                pago.setUrlTransbank(url);
+                pagoRepository.save(pago);
+                responseDTO.setTransbankResponse(transbankResponse);
+                return responseDTO;
+            } catch (Exception e) {
+                pago.setEstadoPago("PENDIENTE");
+                pagoRepository.save(pago);
+                TransbankTransactionResponse fallback = new TransbankTransactionResponse();
+                fallback.setStatus("PENDING");
+                fallback.setResponseCode("0");
+                fallback.setMessage("Error de Transbank: " + e.getMessage());
+                fallback.setToken("SIMULATED_" + System.currentTimeMillis());
+                fallback.setUrl(retorno + "&token=" + fallback.getToken());
+                pago.setTokenTransbank(fallback.getToken());
+                pago.setUrlTransbank(fallback.getUrl());
+                pagoRepository.save(pago);
+                responseDTO.setTransbankResponse(fallback);
+                return responseDTO;
+            }
+        } else {
+            pago.setEstadoPago("transferencia".equals(metodoPago) ? "PENDIENTE" : "PAGADO");
+            pagoRepository.save(pago);
+            responseDTO.setTransbankResponse(null);
+            return responseDTO;
+        }
     }
 
     private Inventario resolverInventario(VentaItemDTO item) {

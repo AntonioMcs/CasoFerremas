@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.profecarlos.tallerapirest.restapi.dto.TrabajadorDTO;
 import com.profecarlos.tallerapirest.restapi.model.Trabajador;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
+import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
+import com.profecarlos.tallerapirest.restapi.service.PasswordPolicyService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import jakarta.validation.Valid;
 
@@ -24,9 +27,15 @@ import jakarta.validation.Valid;
 public class TrabajadorController {
 
     private final TrabajadorRepository trabajadorRepository;
+    private final PasswordPolicyService passwordPolicyService;
+    private final AuditLogService auditLogService;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public TrabajadorController(TrabajadorRepository trabajadorRepository) {
+    public TrabajadorController(TrabajadorRepository trabajadorRepository, PasswordPolicyService passwordPolicyService,
+            AuditLogService auditLogService) {
         this.trabajadorRepository = trabajadorRepository;
+        this.passwordPolicyService = passwordPolicyService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping
@@ -47,22 +56,33 @@ public class TrabajadorController {
     }
 
     @PostMapping
-    public ResponseEntity<Trabajador> crear(@Valid @RequestBody TrabajadorDTO dto) {
-        Trabajador trabajador = new Trabajador(null, dto.getNombre(), dto.getEmail(), dto.getContrasena(), normalizarRol(dto.getRol()));
+    public ResponseEntity<?> crear(@Valid @RequestBody TrabajadorDTO dto) {
+        if (trabajadorRepository.findByEmail(dto.getEmail().trim()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("El correo ya está registrado");
+        }
+        passwordPolicyService.validate(dto.getContrasena());
+        Trabajador trabajador = new Trabajador(null, dto.getNombre(), dto.getEmail().trim(), passwordEncoder.encode(dto.getContrasena()), normalizarRol(dto.getRol()));
         trabajador.setActivo(dto.getActivo() == null ? true : dto.getActivo());
-        return new ResponseEntity<>(trabajadorRepository.save(trabajador), HttpStatus.CREATED);
+        Trabajador guardado = trabajadorRepository.save(trabajador);
+        auditLogService.registrar("TRABAJADOR", guardado.getId(), "CREAR", "Trabajador creado", guardado.getId(), "admin", guardado.getNombre());
+        return new ResponseEntity<>(guardado, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Trabajador> actualizar(@PathVariable Integer id, @Valid @RequestBody TrabajadorDTO dto) {
+    public ResponseEntity<?> actualizar(@PathVariable Integer id, @Valid @RequestBody TrabajadorDTO dto) {
         return trabajadorRepository.findById(id)
                 .map(existing -> {
+                    if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
+                        passwordPolicyService.validate(dto.getContrasena());
+                        existing.setContrasena(passwordEncoder.encode(dto.getContrasena()));
+                    }
                     existing.setNombre(dto.getNombre());
-                    existing.setEmail(dto.getEmail());
-                    existing.setContrasena(dto.getContrasena());
+                    existing.setEmail(dto.getEmail().trim());
                     existing.setRol(normalizarRol(dto.getRol()));
                     existing.setActivo(dto.getActivo() == null ? existing.getActivo() : dto.getActivo());
-                    return ResponseEntity.ok(trabajadorRepository.save(existing));
+                    Trabajador actualizado = trabajadorRepository.save(existing);
+                    auditLogService.registrar("TRABAJADOR", actualizado.getId(), "ACTUALIZAR", "Trabajador actualizado", actualizado.getId(), "admin", actualizado.getNombre());
+                    return ResponseEntity.ok(actualizado);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

@@ -187,19 +187,16 @@ public class PagoController {
             }
 
             TransbankTransactionResponse estado = transbankService.obtenerEstadoTransaccion(token);
-            
-            if ("AUTHORIZED".equals(estado.getStatus())) {
+
+            if ("AUTHORIZED".equalsIgnoreCase(estado.getStatus())) {
                 pago.setEstadoPago("COMPLETADO");
                 pagoRepository.save(pago);
-                return ResponseEntity.ok("✓ Pago autorizado exitosamente | Estado: " + estado.getMessage());
-            } else if ("REVERSED".equals(estado.getStatus())) {
+            } else if ("REVERSED".equalsIgnoreCase(estado.getStatus())) {
                 pago.setEstadoPago("RECHAZADO");
                 pagoRepository.save(pago);
-                return ResponseEntity.status(HttpStatus.PAYMENT_REQUIRED)
-                        .body("⚠️ Pago rechazado | Estado: " + estado.getMessage());
             }
 
-            return ResponseEntity.ok("⚠️ Estado pendiente | Estado: " + estado.getMessage());
+            return ResponseEntity.ok(estado);
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body("⚠️ Error al obtener estado: " + e.getMessage());

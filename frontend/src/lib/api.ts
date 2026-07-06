@@ -13,7 +13,9 @@ import type {
   ProductImage,
   ProductImageFormState,
   SaleRequest,
+  SaleResponse,
   SessionUser,
+  TransbankResponse,
   Trabajador,
   TrabajadorFormState,
 } from './types';
@@ -202,13 +204,38 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
-  async createClientSale(payload: SaleRequest): Promise<OrderItem> {
+  async createClientSale(payload: SaleRequest): Promise<SaleResponse> {
     const { data } = await client.post('/api/v1/ventas/cliente', payload);
     return data;
   },
 
-  async createSellerSale(payload: SaleRequest): Promise<OrderItem> {
+  async createSellerSale(payload: SaleRequest): Promise<SaleResponse> {
     const { data } = await client.post('/api/v1/ventas/vendedor', payload);
     return data;
+  },
+
+  async getTransbankStatus(pagoId: number, token: string): Promise<TransbankResponse> {
+    const { data } = await client.get(`/api/v1/pagos/${pagoId}/transbank/estado/${encodeURIComponent(token)}`);
+    return data;
+  },
+
+  async updateOrderStatus(id: number, estado: string): Promise<OrderItem> {
+    const { data } = await client.put(`/api/v1/pedidos/${id}/estado`, estado);
+    return data;
+  },
+
+  async getOrdersByStatus(estado: string): Promise<OrderItem[]> {
+    const { data } = await client.get(`/api/v1/pedidos/estado/${encodeURIComponent(estado)}`);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getReports(): Promise<Record<string, unknown>> {
+    const { data } = await client.get('/api/v1/reportes/operaciones');
+    return data ?? {};
+  },
+
+  async getAuditLogs(): Promise<unknown[]> {
+    const { data } = await client.get('/api/v1/audit-logs');
+    return Array.isArray(data) ? data : [];
   },
 };

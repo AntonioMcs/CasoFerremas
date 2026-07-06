@@ -16,6 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.profecarlos.tallerapirest.restapi.dto.ClienteDTO;
 import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
+import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
+import com.profecarlos.tallerapirest.restapi.service.PasswordPolicyService;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import jakarta.validation.Valid;
 
@@ -24,9 +27,15 @@ import jakarta.validation.Valid;
 public class ClienteController {
 
     private final ClienteRepository clienteRepository;
+    private final PasswordPolicyService passwordPolicyService;
+    private final AuditLogService auditLogService;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    public ClienteController(ClienteRepository clienteRepository) {
+    public ClienteController(ClienteRepository clienteRepository, PasswordPolicyService passwordPolicyService,
+            AuditLogService auditLogService) {
         this.clienteRepository = clienteRepository;
+        this.passwordPolicyService = passwordPolicyService;
+        this.auditLogService = auditLogService;
     }
 
     @GetMapping
@@ -42,21 +51,32 @@ public class ClienteController {
     }
 
     @PostMapping
-    public ResponseEntity<Cliente> crear(@Valid @RequestBody ClienteDTO dto) {
-        Cliente cliente = new Cliente(null, dto.getNombre(), dto.getEmail(), dto.getContrasena());
+    public ResponseEntity<?> crear(@Valid @RequestBody ClienteDTO dto) {
+        if (clienteRepository.findByEmail(dto.getEmail().trim()).isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("El correo ya está registrado");
+        }
+        passwordPolicyService.validate(dto.getContrasena());
+        Cliente cliente = new Cliente(null, dto.getNombre(), dto.getEmail().trim(), passwordEncoder.encode(dto.getContrasena()));
         aplicarDatos(cliente, dto);
-        return new ResponseEntity<>(clienteRepository.save(cliente), HttpStatus.CREATED);
+        Cliente guardado = clienteRepository.save(cliente);
+        auditLogService.registrar("CLIENTE", guardado.getId(), "CREAR", "Cliente creado", guardado.getId(), "cliente", guardado.getNombre());
+        return new ResponseEntity<>(guardado, HttpStatus.CREATED);
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<Cliente> actualizar(@PathVariable Integer id, @Valid @RequestBody ClienteDTO dto) {
+    public ResponseEntity<?> actualizar(@PathVariable Integer id, @Valid @RequestBody ClienteDTO dto) {
         return clienteRepository.findById(id)
                 .map(existing -> {
+                    if (dto.getContrasena() != null && !dto.getContrasena().isBlank()) {
+                        passwordPolicyService.validate(dto.getContrasena());
+                        existing.setContrasena(passwordEncoder.encode(dto.getContrasena()));
+                    }
                     existing.setNombre(dto.getNombre());
-                    existing.setEmail(dto.getEmail());
-                    existing.setContrasena(dto.getContrasena());
+                    existing.setEmail(dto.getEmail().trim());
                     aplicarDatos(existing, dto);
-                    return ResponseEntity.ok(clienteRepository.save(existing));
+                    Cliente actualizado = clienteRepository.save(existing);
+                    auditLogService.registrar("CLIENTE", actualizado.getId(), "ACTUALIZAR", "Cliente actualizado", actualizado.getId(), "cliente", actualizado.getNombre());
+                    return ResponseEntity.ok(actualizado);
                 })
                 .orElse(ResponseEntity.notFound().build());
     }

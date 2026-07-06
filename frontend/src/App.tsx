@@ -14,6 +14,7 @@ import type {
   ProductImageFormState,
   SaleItem,
   SessionUser,
+  TransbankResponse,
   Trabajador,
   TrabajadorFormState,
 } from './lib/types';
@@ -97,6 +98,10 @@ export default function App() {
   const [activeView, setActiveView] = useState<View>('cliente');
   const [path, setPath] = useState(() => window.location.pathname);
   const [showLogin, setShowLogin] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [checkoutModalOpen, setCheckoutModalOpen] = useState(false);
+  const [checkoutKind, setCheckoutKind] = useState<'cliente' | 'vendedor' | null>(null);
+  const [checkoutMethod, setCheckoutMethod] = useState('tarjeta');
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPassword, setLoginPassword] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
@@ -107,8 +112,12 @@ export default function App() {
   const [pendingTransfers, setPendingTransfers] = useState<OrderItem[]>([]);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
+  const [reportSummary, setReportSummary] = useState<Record<string, unknown>>({});
+  const [auditLogs, setAuditLogs] = useState<unknown[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
+  const [transbankStatus, setTransbankStatus] = useState<string | null>(null);
+  const [transbankResponse, setTransbankResponse] = useState<TransbankResponse | null>(null);
   const [storeSearchDraft, setStoreSearchDraft] = useState('');
   const [storeSearchQuery, setStoreSearchQuery] = useState('');
   const [sellerSearchDraft, setSellerSearchDraft] = useState('');
@@ -150,7 +159,7 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData] =
+      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData] =
         await Promise.allSettled([
           api.getProducts(),
           api.getInventories(),
@@ -160,6 +169,8 @@ export default function App() {
           api.getPendingTransfers(),
           api.getProductImages(),
           api.getCategories(),
+          api.getReports(),
+          api.getAuditLogs(),
         ]);
 
       if (productData.status === 'fulfilled') setProducts(productData.value);
@@ -178,8 +189,10 @@ export default function App() {
       if (transferData.status === 'fulfilled') setPendingTransfers(transferData.value);
       if (imageData.status === 'fulfilled') setImages(imageData.value);
       if (categoryData.status === 'fulfilled') setCategories(categoryData.value);
+      if (reportData.status === 'fulfilled') setReportSummary(reportData.value);
+      if (auditData.status === 'fulfilled') setAuditLogs(auditData.value);
 
-      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData]
+      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData]
         .filter((item) => item.status === 'rejected');
       setStatusMessage(rejected.length ? `Datos cargados parcialmente (${rejected.length} modulo(s) con error).` : 'Catalogo actualizado.');
     } catch (error) {
@@ -203,13 +216,54 @@ export default function App() {
     if (session?.rol) setActiveView(normalizeView(session.rol));
   }, [session]);
 
+  const routeProductId = path.match(/^\/producto\/(\d+)/)?.[1];
+  const selectedRouteProduct = routeProductId ? products.find((product) => product.id === Number(routeProductId)) : null;
+  const isTransbankReturn = path.startsWith('/transbank-return');
+
+  useEffect(() => {
+    if (!isTransbankReturn) {
+      setTransbankStatus(null);
+      return;
+    }
+
+    const query = new URLSearchParams(window.location.search);
+    const pagoId = query.get('pagoId');
+    const token = query.get('token') || query.get('token_ws') || query.get('TBK_TOKEN');
+    if (!pagoId || !token) {
+      setTransbankStatus('Parámetros de Transbank incompletos.');
+      return;
+    }
+    const safeToken = token;
+
+    async function fetchTransbankStatus() {
+      try {
+        setStatusMessage('Verificando estado de pago Transbank...');
+        const response = await api.getTransbankStatus(Number(pagoId), safeToken);
+        setTransbankResponse(response);
+        setTransbankStatus(`Estado: ${response.status} - ${response.message}`);
+
+        if (response.status?.toUpperCase() === 'AUTHORIZED') {
+          setStatusMessage('Pago autorizado. Volviendo al catálogo...');
+          setTimeout(() => {
+            setTransbankResponse(null);
+            setTransbankStatus(null);
+            goTo('/');
+          }, 3000);
+        } else if (response.status?.toUpperCase() === 'REVERSED') {
+          setStatusMessage('Pago rechazado. Por favor inténtalo nuevamente.');
+        }
+      } catch (error) {
+        setTransbankStatus(getApiErrorMessage(error));
+      }
+    }
+
+    void fetchTransbankStatus();
+  }, [path, isTransbankReturn]);
+
   const branches = useMemo(() => {
     const names = inventories.map((item) => stockPlace(item)).filter(Boolean);
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
   }, [inventories]);
-
-  const routeProductId = path.match(/^\/producto\/(\d+)/)?.[1];
-  const selectedRouteProduct = routeProductId ? products.find((product) => product.id === Number(routeProductId)) : null;
 
   const visibleProducts = products.filter((product) => {
     const text = `${product.nombreProducto} ${product.marca ?? ''} ${product.codigoSku ?? ''} ${product.categoriaNombre ?? ''}`.toLowerCase();
@@ -395,11 +449,23 @@ export default function App() {
     setActiveView('cliente');
   }
 
-  async function submitSale(kind: 'cliente' | 'vendedor') {
+  async function submitClientRegistration(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      await api.createCliente(clienteForm);
+      setClienteForm(emptyClienteForm);
+      setAuthMode('login');
+      setStatusMessage('Cuenta creada correctamente. Ya puedes iniciar sesión.');
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
+  }
+
+  async function submitSale(kind: 'cliente' | 'vendedor', paymentMethodOverride?: string) {
     const cart = kind === 'cliente' ? clientCart : sellerCart;
     const clienteId = kind === 'cliente' ? (session?.tipoUsuario === 'cliente' ? String(session.id) : selectedClienteId) : selectedSellerClienteId;
     const trabajadorId = kind === 'vendedor' ? (session?.tipoUsuario === 'trabajador' ? String(session.id) : selectedVendedorId) : '';
-    const metodoPago = kind === 'cliente' ? clientPaymentMethod : sellerPaymentMethod;
+    const metodoPago = paymentMethodOverride ?? (kind === 'cliente' ? clientPaymentMethod : sellerPaymentMethod);
 
     if (!clienteId || cart.length === 0) {
       setStatusMessage('Seleccione cliente y al menos un producto antes de pagar.');
@@ -416,13 +482,51 @@ export default function App() {
 
     try {
       setStatusMessage('Procesando venta y descontando stock...');
+      const saleResponse = kind === 'cliente'
+        ? await api.createClientSale(payload)
+        : await api.createSellerSale(payload);
+
+      if (saleResponse.transbankResponse?.url) {
+        setStatusMessage('Redirigiendo a Transbank para completar el pago...');
+        const tokenValue = saleResponse.transbankResponse.token
+          ?? saleResponse.transbankResponse.transactionId
+          ?? saleResponse.transbankResponse.authorizationCode
+          ?? '';
+
+        if (!tokenValue) {
+          setStatusMessage('Error: token Transbank no disponible.');
+          return;
+        }
+
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = saleResponse.transbankResponse.url;
+        form.target = '_self';
+        form.style.display = 'none';
+
+        const tokenWsInput = document.createElement('input');
+        tokenWsInput.type = 'hidden';
+        tokenWsInput.name = 'token_ws';
+        tokenWsInput.value = tokenValue;
+        form.appendChild(tokenWsInput);
+
+        const tbkTokenInput = document.createElement('input');
+        tbkTokenInput.type = 'hidden';
+        tbkTokenInput.name = 'TBK_TOKEN';
+        tbkTokenInput.value = tokenValue;
+        form.appendChild(tbkTokenInput);
+
+        document.body.appendChild(form);
+        form.submit();
+        return;
+      }
+
       if (kind === 'cliente') {
-        await api.createClientSale(payload);
         setClientCart([]);
       } else {
-        await api.createSellerSale(payload);
         setSellerCart([]);
       }
+      setCheckoutModalOpen(false);
       await loadData();
       setStatusMessage('Venta registrada correctamente. Stock actualizado.');
     } catch (error) {
@@ -446,9 +550,14 @@ export default function App() {
 
   const submitCliente = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await api.createCliente(clienteForm);
-    setClienteForm(emptyClienteForm);
-    await loadData();
+    try {
+      await api.createCliente(clienteForm);
+      setClienteForm(emptyClienteForm);
+      await loadData();
+      setStatusMessage('Usuario creado correctamente.');
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
   };
 
   const submitTrabajador = async (event: FormEvent<HTMLFormElement>) => {
@@ -603,7 +712,23 @@ export default function App() {
 
         <div className="status-banner">{statusMessage}</div>
 
-        {selectedRouteProduct ? renderProductDetail(selectedRouteProduct) : (
+        {selectedRouteProduct ? renderProductDetail(selectedRouteProduct) : isTransbankReturn ? (
+          <section className="shop-layout">
+            <article className="panel-card">
+              <div className="card-head"><h3>Retorno Transbank</h3></div>
+              <p>{transbankStatus ?? 'Consultando estado de pago...'}</p>
+              {transbankResponse?.status?.toUpperCase() === 'AUTHORIZED' ? (
+                <p className="success-copy">Pago autorizado correctamente. Serás redirigido en breve.</p>
+              ) : null}
+              <button className="primary-button" type="button" onClick={() => {
+                window.history.pushState(null, '', '/');
+                setPath('/');
+                setTransbankStatus(null);
+                setTransbankResponse(null);
+              }}>Volver al inicio</button>
+            </article>
+          </section>
+        ) : (
           <>
             {visibleView === 'cliente' && renderStorefront()}
             {visibleView === 'vendedor' && renderSeller()}
@@ -614,18 +739,54 @@ export default function App() {
         )}
       </main>
 
+      {checkoutModalOpen && checkoutKind && (
+        <div className="modal-overlay">
+          <article className="login-card">
+            <div className="card-head">
+              <h3>Método de pago</h3>
+              <button className="close-button" type="button" onClick={() => setCheckoutModalOpen(false)}>Cerrar</button>
+            </div>
+            <div className="form-grid">
+              <p className="muted-copy">Elige el método con el que cerrarás la venta. Las tarjetas usan el flujo de Transbank.</p>
+              <select value={checkoutMethod} onChange={(event) => setCheckoutMethod(event.target.value)}>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="efectivo">Efectivo</option>
+              </select>
+              <button className="primary-button" type="button" onClick={() => {
+                if (checkoutKind === 'cliente') {
+                  setClientPaymentMethod(checkoutMethod);
+                  void submitSale('cliente', checkoutMethod);
+                } else {
+                  setSellerPaymentMethod(checkoutMethod);
+                  void submitSale('vendedor', checkoutMethod);
+                }
+              }}>Confirmar pago</button>
+            </div>
+          </article>
+        </div>
+      )}
+
       {showLogin && (
         <div className="modal-overlay">
           <article className="login-card">
             <div className="card-head">
-              <h3>Ingresar a FERREMAS</h3>
+              <h3>{authMode === 'login' ? 'Ingresar a FERREMAS' : 'Crear cuenta'}</h3>
               <button className="close-button" type="button" onClick={() => setShowLogin(false)}>Cerrar</button>
             </div>
-            <form className="form-grid" onSubmit={submitLogin}>
-              <input required type="email" placeholder="Email registrado" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
-              <input required type="password" placeholder="Contrasena" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} />
-              <button className="primary-button" type="submit">Entrar</button>
-            </form>
+            {authMode === 'login' ? (
+              <form className="form-grid" onSubmit={submitLogin}>
+                <input required type="email" placeholder="Email registrado" value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
+                <input required type="password" placeholder="Contrasena" value={loginPassword} onChange={(event) => setLoginPassword(event.target.value)} />
+                <button className="primary-button" type="submit">Entrar</button>
+                <button className="ghost-button" type="button" onClick={() => setAuthMode('register')}>Crear cuenta nueva</button>
+              </form>
+            ) : (
+              <div className="form-grid">
+                {renderClienteForm(clienteForm, setClienteForm, submitClientRegistration, 'Crear cuenta')}
+                <button className="ghost-button" type="button" onClick={() => setAuthMode('login')}>Volver al ingreso</button>
+              </div>
+            )}
           </article>
         </div>
       )}
@@ -705,7 +866,16 @@ export default function App() {
           })}
         </section>
 
-        {renderCart(clientCart, setClientCart, clientTotal, () => submitSale('cliente'), 'Carro de compra')}
+        {renderCart(clientCart, setClientCart, clientTotal, () => {
+          if (!session) {
+            setStatusMessage('Debes iniciar sesión para completar la compra.');
+            setShowLogin(true);
+            return;
+          }
+          setCheckoutKind('cliente');
+          setCheckoutMethod(clientPaymentMethod);
+          setCheckoutModalOpen(true);
+        }, 'Carro de compra')}
       </section>
     );
   }
@@ -713,6 +883,24 @@ export default function App() {
   function renderSeller() {
     return (
       <section className="work-layout">
+        <article className="panel-card">
+          <div className="card-head"><h3>Panel de ventas</h3><span>Operaciones</span></div>
+          <div className="admin-module-grid">
+            <article className="panel-card admin-module-card active">
+              <strong>Ventas rápidas</strong>
+              <p>Vende productos y elige el método de pago antes de confirmar.</p>
+            </article>
+            <article className="panel-card admin-module-card active">
+              <strong>Reportes</strong>
+              <p>Revisa las operaciones del día y los eventos de auditoría.</p>
+            </article>
+          </div>
+        </article>
+        <article className="panel-card metric-card">
+          <p className="sidebar-label">Reporte de ventas</p>
+          <strong>{money(totalSales)}</strong>
+          <p className="muted-copy">{orders.length} pedidos y {String(reportSummary.totalAuditoria ?? 0)} eventos registrados.</p>
+        </article>
         <div className="toolbar-row">
           {renderSearchBox(sellerSearchDraft, setSellerSearchDraft, setSellerSearchQuery, 'Buscar producto para vender')}
           <select value={selectedSellerClienteId} onChange={(event) => setSelectedSellerClienteId(event.target.value)}>
@@ -755,14 +943,42 @@ export default function App() {
             </tbody>
           </table>
         </div>
-        {renderCart(sellerCart, setSellerCart, sellerTotal, () => submitSale('vendedor'), 'Venta asistida')}
+        {renderCart(sellerCart, setSellerCart, sellerTotal, () => {
+          setCheckoutKind('vendedor');
+          setCheckoutMethod(sellerPaymentMethod);
+          setCheckoutModalOpen(true);
+        }, 'Venta asistida')}
       </section>
     );
   }
 
+  async function handleOrderStatusChange(orderId: number, nextStatus: string) {
+    try {
+      await api.updateOrderStatus(orderId, nextStatus);
+      await loadData();
+      setStatusMessage(`Pedido #${orderId} actualizado a ${nextStatus}.`);
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
+  }
+
   function renderWarehouse() {
+    const pendingOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente' || (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'listo');
     return (
       <section className="panel-grid">
+        <article className="panel-card">
+          <div className="card-head"><h3>Panel de bodega</h3><span>Operaciones</span></div>
+          <div className="admin-module-grid">
+            <article className="panel-card admin-module-card active">
+              <strong>Pedidos listos</strong>
+              <p>Revisa los pedidos preparados y avanza su estado de despacho.</p>
+            </article>
+            <article className="panel-card admin-module-card active">
+              <strong>Inventario</strong>
+              <p>Controla stock mínimo, ubicación y disponibilidad por sucursal y web.</p>
+            </article>
+          </div>
+        </article>
         <article className="panel-card form-card">
           <h3>Nuevo inventario</h3>
           <form onSubmit={submitInventory} className="form-grid">
@@ -774,6 +990,26 @@ export default function App() {
             <input type="number" placeholder="Proveedor ID" value={inventoryForm.proveedorId} onChange={(event) => setInventoryForm({ ...inventoryForm, proveedorId: event.target.value })} />
             <button className="primary-button" type="submit">Guardar inventario</button>
           </form>
+        </article>
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Pedidos listos para despacho</h3><span>{pendingOrders.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Accion</th></tr></thead>
+              <tbody>{pendingOrders.map((order) => (
+                <tr key={order.idPedido}>
+                  <td>{order.idPedido}</td>
+                  <td>{order.cliente?.nombre ?? '-'}</td>
+                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                  <td>{order.metodoPago ?? '-'}</td>
+                  <td>
+                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'entregando')}>Marcar entregando</button>
+                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'entregado')}>Marcar listo</button>
+                  </td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         </article>
         <article className="panel-card list-card">
           <div className="card-head"><h3>Inventario por comuna y web</h3><span>{lowStock.length} bajo</span></div>
@@ -797,12 +1033,43 @@ export default function App() {
   }
 
   function renderAccounting() {
+    const pendingReviewOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente');
     return (
       <section className="panel-grid">
+        <article className="panel-card">
+          <div className="card-head"><h3>Panel de contabilidad</h3><span>Operaciones</span></div>
+          <div className="admin-module-grid">
+            <article className="panel-card admin-module-card active">
+              <strong>Pedidos pendientes</strong>
+              <p>Marca los pedidos que ya están listos para despacho.</p>
+            </article>
+            <article className="panel-card admin-module-card active">
+              <strong>Reportes</strong>
+              <p>Revisa el resumen de ventas, pagos y auditoría.</p>
+            </article>
+          </div>
+        </article>
         <article className="panel-card metric-card">
           <p className="sidebar-label">Ventas registradas</p>
           <strong>{money(totalSales)}</strong>
           <p className="muted-copy">{orders.length} pedidos totales - {pendingTransfers.length} transferencias pendientes</p>
+        </article>
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Productos y pedidos pendientes</h3><span>{pendingReviewOrders.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Accion</th></tr></thead>
+              <tbody>{pendingReviewOrders.map((order) => (
+                <tr key={order.idPedido}>
+                  <td>{order.idPedido}</td>
+                  <td>{order.cliente?.nombre ?? '-'}</td>
+                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                  <td>{order.metodoPago ?? '-'}</td>
+                  <td><button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'listo')}>Marcar listo</button></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
         </article>
         <article className="panel-card list-card">
           <div className="card-head"><h3>Compras y pendientes</h3><span>{orders.length}</span></div>
@@ -829,6 +1096,30 @@ export default function App() {
   function renderAdmin() {
     return (
       <section className="admin-stack">
+        <article className="panel-card">
+          <div className="card-head"><h3>Reportes y auditoría</h3><span>{String(reportSummary.totalAuditoria ?? 0)}</span></div>
+          <div className="metric-grid">
+            <div><strong>{String(reportSummary.totalPedidos ?? 0)}</strong><p>Pedidos</p></div>
+            <div><strong>{String(reportSummary.pedidosPendientes ?? 0)}</strong><p>Pendientes</p></div>
+            <div><strong>{String(reportSummary.pedidosListos ?? 0)}</strong><p>Listos</p></div>
+            <div><strong>{String(reportSummary.pedidosEntregando ?? 0)}</strong><p>Entregando</p></div>
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Entidad</th><th>Accion</th><th>Detalle</th></tr></thead>
+              <tbody>{auditLogs.slice(0, 8).map((log, index) => {
+                const safeLog = log as Record<string, unknown>;
+                return (
+                  <tr key={index}>
+                    <td>{String(safeLog.entidad ?? '-')}</td>
+                    <td>{String(safeLog.accion ?? '-')}</td>
+                    <td>{String(safeLog.detalle ?? '-')}</td>
+                  </tr>
+                );
+              })}</tbody>
+            </table>
+          </div>
+        </article>
         <div className="admin-module-grid">
           {adminModules.map((module) => (
             <article className={`panel-card admin-module-card ${expandedAdminModule === module.key ? 'active' : ''}`} key={module.key}>
@@ -1139,6 +1430,7 @@ export default function App() {
         <input required placeholder="Nombre" value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
         <input required type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
         <input required type="password" placeholder="Contrasena" value={form.contrasena} onChange={(event) => setForm({ ...form, contrasena: event.target.value })} />
+        <p className="muted-copy">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</p>
         <input placeholder="RUT" value={form.rut} onChange={(event) => setForm({ ...form, rut: event.target.value })} />
         <input placeholder="Telefono" value={form.telefono} onChange={(event) => setForm({ ...form, telefono: event.target.value })} />
         <input placeholder="Direccion" value={form.direccion} onChange={(event) => setForm({ ...form, direccion: event.target.value })} />
@@ -1154,6 +1446,7 @@ export default function App() {
         <input required placeholder="Nombre" value={form.nombre} onChange={(event) => setForm({ ...form, nombre: event.target.value })} />
         <input required type="email" placeholder="Email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} />
         <input required type="password" placeholder="Contrasena" value={form.contrasena} onChange={(event) => setForm({ ...form, contrasena: event.target.value })} />
+        <p className="muted-copy">Mínimo 8 caracteres, con mayúscula, minúscula, número y símbolo.</p>
         <select value={form.rol} onChange={(event) => setForm({ ...form, rol: event.target.value })}>
           <option value="VENDEDOR">Vendedor</option>
           <option value="BODEGUERO">Bodeguero</option>

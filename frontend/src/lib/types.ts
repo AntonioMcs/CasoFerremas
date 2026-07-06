@@ -125,6 +125,21 @@ export type OrderItem = {
   tipoEntrega?: string | null;
 };
 
+export type TransbankResponse = {
+  status: string;
+  responseCode: string;
+  message: string;
+  transactionId?: string | null;
+  authorizationCode?: string | null;
+  token?: string | null;
+  url?: string | null;
+};
+
+export type SaleResponse = {
+  pedido: OrderItem;
+  transbankResponse?: TransbankResponse | null;
+};
+
 export type SaleItem = {
   productoId: number;
   inventarioId?: number;
