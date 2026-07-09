@@ -1372,7 +1372,116 @@ export default function App() {
     }
   }
 
+  function renderWarehouseModule() {
+    const statusOptions = ['pagado', 'preparacion', 'despachado', 'entregado'];
+    const warehouseOrders = orders
+      .filter((order) => ['pagado', 'preparacion', 'despachado', 'pendiente'].includes(orderStatusName(order)))
+      .filter((order) => !order.grupoCompraId || !order.pedidoReferencia || order.pedidoReferencia === order.idPedido)
+      .sort((a, b) => b.idPedido - a.idPedido);
+    const stockByBranch = inventories.reduce<Record<string, number>>((summary, item) => {
+      const branch = stockPlace(item);
+      summary[branch] = (summary[branch] ?? 0) + item.stockActual;
+      return summary;
+    }, {});
+    const productsWithStock = new Set(inventories.filter((item) => item.stockActual > 0).map((item) => item.productoId)).size;
+
+    const orderProducts = (order: OrderItem) => {
+      const groupedOrders = order.grupoCompraId
+        ? orders.filter((item) => item.grupoCompraId === order.grupoCompraId)
+        : [order];
+      const summaries = groupedOrders
+        .flatMap((item) => detailsForOrder(item.idPedido))
+        .map(detailSummary);
+
+      if (summaries.length > 0) return summaries.join(' / ');
+      return groupedOrders.map((item) => orderSummaryFallback(item)).filter(Boolean).join(' / ') || '-';
+    };
+
+    return (
+      <section className="admin-stack warehouse-stack">
+        <article className="panel-card">
+          <div className="card-head">
+            <div>
+              <h3>Modulo de bodeguero</h3>
+              <p className="muted-copy">Stock disponible por bodega/sucursal y gestion operativa de pedidos.</p>
+            </div>
+            <span>{session?.email ?? 'bodega'}</span>
+          </div>
+          <div className="metric-grid">
+            <div><strong>{totalStock}</strong><p>Stock total</p></div>
+            <div><strong>{productsWithStock}</strong><p>Productos con stock</p></div>
+            <div><strong>{Object.keys(stockByBranch).length}</strong><p>Bodegas/sucursales</p></div>
+            <div><strong>{warehouseOrders.length}</strong><p>Pedidos activos</p></div>
+          </div>
+        </article>
+
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Pedidos en preparacion</h3><span>{warehouseOrders.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Productos</th><th>Entrega</th><th>Pago</th><th>Estado</th><th>Actualizar</th></tr></thead>
+              <tbody>{warehouseOrders.map((order) => (
+                <tr key={order.idPedido}>
+                  <td>{order.idPedido}</td>
+                  <td>{order.cliente?.nombre ?? '-'}</td>
+                  <td>{orderProducts(order)}</td>
+                  <td>{order.tipoEntrega ?? '-'}</td>
+                  <td>{order.metodoPago ?? '-'}</td>
+                  <td><span className={`status-chip status-${orderStatusName(order)}`}>{order.estadoPedido?.nombreEstado ?? '-'}</span></td>
+                  <td>
+                    <select
+                      className="status-select"
+                      value={orderStatusName(order)}
+                      onChange={(event) => handleOrderStatusChange(order.idPedido, event.target.value)}
+                    >
+                      <option value="pendiente">pendiente</option>
+                      {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+                {warehouseOrders.length === 0 && (
+                  <tr><td colSpan={7}>No hay pedidos activos para bodega.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Stock por bodega y sucursal</h3><span>{lowStock.length} bajo minimo</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Producto</th><th>Sucursal</th><th>Bodega</th><th>Stock</th><th>Minimo</th><th>Proveedor</th><th>Estado</th></tr></thead>
+              <tbody>{inventories.map((item) => (
+                <tr key={item.idInventario}>
+                  <td>{item.nombreProducto ?? item.productoId}</td>
+                  <td>{item.sucursal || (isWebStock(item) ? 'Web' : '-')}</td>
+                  <td>{item.ubicacionBodega || stockPlace(item)}</td>
+                  <td>{item.stockActual}</td>
+                  <td>{item.stockMinimo}</td>
+                  <td>{item.nombreProveedor ?? item.proveedorId ?? '-'}</td>
+                  <td>
+                    <span className={`status-chip ${item.stockActual <= item.stockMinimo ? 'status-pendiente' : 'status-pagado'}`}>
+                      {item.stockActual <= item.stockMinimo ? 'reponer' : 'disponible'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+                {inventories.length === 0 && (
+                  <tr><td colSpan={7}>No hay inventario registrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   function renderWarehouse() {
+    return renderWarehouseModule();
+
     const pendingOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente' || (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'listo');
     return (
       <section className="panel-grid">
