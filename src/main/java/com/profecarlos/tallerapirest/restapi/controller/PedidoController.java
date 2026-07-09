@@ -18,11 +18,13 @@ import com.profecarlos.tallerapirest.restapi.dto.PedidoDTO;
 import com.profecarlos.tallerapirest.restapi.model.Cliente;
 import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
 import com.profecarlos.tallerapirest.restapi.model.Pedido;
+import com.profecarlos.tallerapirest.restapi.model.Product;
 import com.profecarlos.tallerapirest.restapi.model.Trabajador;
 import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PagoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
 import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
 
@@ -37,16 +39,18 @@ public class PedidoController {
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
+    private final ProductRepository productRepository;
     private final PagoRepository pagoRepository;
     private final AuditLogService auditLogService;
 
     public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
             TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
-            PagoRepository pagoRepository, AuditLogService auditLogService) {
+            ProductRepository productRepository, PagoRepository pagoRepository, AuditLogService auditLogService) {
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.productRepository = productRepository;
         this.pagoRepository = pagoRepository;
         this.auditLogService = auditLogService;
     }
@@ -83,11 +87,22 @@ public class PedidoController {
         return pedidoRepository.findById(id).map(pedido -> {
             String estadoNombre = extraerNombreEstado(estadoRequest);
             EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
-            pedido.setEstadoPedido(estado);
-            Pedido guardado = pedidoRepository.save(pedido);
-            sincronizarPagoTransferencia(guardado, estadoNombre);
-            auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
-            return ResponseEntity.ok(guardado);
+            List<Pedido> pedidosGrupo = pedido.getGrupoCompraId() == null || pedido.getGrupoCompraId().isBlank()
+                    ? List.of(pedido)
+                    : pedidoRepository.findByGrupoCompraIdOrderByIdPedidoAsc(pedido.getGrupoCompraId());
+
+            Pedido principal = pedido;
+            for (Pedido item : pedidosGrupo) {
+                item.setEstadoPedido(estado);
+                Pedido guardado = pedidoRepository.save(item);
+                if (guardado.getIdPedido().equals(item.getPedidoReferencia())) {
+                    principal = guardado;
+                }
+                sincronizarPagoTransferencia(guardado, estadoNombre);
+            }
+
+            auditLogService.registrar("PEDIDO", principal.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
+            return ResponseEntity.ok(principal);
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -204,6 +219,16 @@ public class PedidoController {
         pedido.setCliente(cliente);
         pedido.setTrabajador(trabajador);
         pedido.setEstadoPedido(estadoPedido);
+
+        Product producto = null;
+        if (dto.getProductoId() != null) {
+            producto = productRepository.findById(dto.getProductoId()).orElse(null);
+            if (producto == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
+            }
+        }
+        pedido.setProducto(producto);
+
         return null;
     }
 
@@ -212,6 +237,8 @@ public class PedidoController {
         pedido.setTotal(dto.getTotal());
         pedido.setMetodoPago(dto.getMetodoPago());
         pedido.setTipoEntrega(dto.getTipoEntrega());
+        pedido.setGrupoCompraId(dto.getGrupoCompraId());
+        pedido.setPedidoReferencia(dto.getPedidoReferencia());
     }
 
     private ResponseEntity<?> validarDTO(PedidoDTO dto) {

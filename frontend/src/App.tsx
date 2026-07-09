@@ -8,6 +8,7 @@ import type {
   ClienteFormState,
   InventoryFormState,
   InventoryItem,
+  OrderDetailItem,
   OrderItem,
   Product,
   ProductFormState,
@@ -24,6 +25,13 @@ type View = 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin';
 type AdminModule = 'productos' | 'inventario' | 'clientes' | 'trabajadores' | 'pedidos' | 'categorias' | 'imagenes';
 type AdminAction = 'ver' | 'agregar' | 'modificar' | 'eliminar';
 type CartLine = Omit<SaleItem, 'sucursal'> & { nombre: string; precio: number; sucursal?: string | null };
+type ClientPurchaseGroup = {
+  key: string;
+  displayOrderId: number;
+  representative: OrderItem;
+  orders: OrderItem[];
+  total: number;
+};
 
 const emptyProductForm: ProductFormState = {
   nombreProducto: '',
@@ -152,6 +160,11 @@ export default function App() {
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [reportSummary, setReportSummary] = useState<Record<string, unknown>>({});
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [showClientAccount, setShowClientAccount] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<OrderDetailItem[]>([]);
+  const [clientOrderDetails, setClientOrderDetails] = useState<Record<number, OrderDetailItem[]>>({});
+  const [expandedOrderProducts, setExpandedOrderProducts] = useState<Record<number, boolean>>({});
+  const [clientAccountLoading, setClientAccountLoading] = useState(false);
   const [showAllMovements, setShowAllMovements] = useState(false);
   const [movementUserFilter, setMovementUserFilter] = useState('todos');
   const [loading, setLoading] = useState(true);
@@ -199,7 +212,7 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData] =
+      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, detailData, imageData, categoryData, reportData, auditData] =
         await Promise.allSettled([
           api.getProducts(),
           api.getInventories(),
@@ -207,6 +220,7 @@ export default function App() {
           api.getTrabajadores(),
           api.getOrders(),
           api.getPendingTransfers(),
+          api.getAllOrderDetails(),
           api.getProductImages(),
           api.getCategories(),
           api.getReports(),
@@ -227,12 +241,13 @@ export default function App() {
       }
       if (orderData.status === 'fulfilled') setOrders(orderData.value);
       if (transferData.status === 'fulfilled') setPendingTransfers(transferData.value);
+      if (detailData.status === 'fulfilled') setOrderDetails(detailData.value);
       if (imageData.status === 'fulfilled') setImages(imageData.value);
       if (categoryData.status === 'fulfilled') setCategories(categoryData.value);
       if (reportData.status === 'fulfilled') setReportSummary(reportData.value);
       if (auditData.status === 'fulfilled') setAuditLogs(auditData.value);
 
-      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData]
+      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, detailData, imageData, categoryData, reportData, auditData]
         .filter((item) => item.status === 'rejected');
       setStatusMessage(rejected.length ? `Datos cargados parcialmente (${rejected.length} modulo(s) con error).` : 'Catalogo actualizado.');
     } catch (error) {
@@ -330,6 +345,133 @@ export default function App() {
   const clientTotal = clientCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const sellerTotal = sellerCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const visibleView = session ? activeView : 'cliente';
+  const clientOrders = session?.tipoUsuario === 'cliente'
+    ? orders.filter((order) => orderBelongsToSession(order))
+    : [];
+  const clientOrderGroups = useMemo<ClientPurchaseGroup[]>(() => {
+    const grouped = new Map<string, OrderItem[]>();
+    for (const order of clientOrders) {
+      const key = order.grupoCompraId?.trim()
+        || (order.pedidoReferencia ? `pedido-ref-${order.pedidoReferencia}` : `pedido-${order.idPedido}`);
+      grouped.set(key, [...(grouped.get(key) ?? []), order]);
+    }
+
+    return Array.from(grouped.entries()).map(([key, groupedOrders]) => {
+      const sorted = [...groupedOrders].sort((a, b) => a.idPedido - b.idPedido);
+      const representative = sorted.find((order) => order.pedidoReferencia === order.idPedido) ?? sorted[0];
+      const total = sorted.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+      return {
+        key,
+        displayOrderId: representative.pedidoReferencia ?? representative.idPedido,
+        representative,
+        orders: sorted,
+        total,
+      };
+    }).sort((a, b) => b.displayOrderId - a.displayOrderId);
+  }, [clientOrders]);
+  const clientMovements = session?.tipoUsuario === 'cliente'
+    ? auditLogs.filter((log) => log.tipoUsuario === 'cliente' && log.idUsuario === session.id)
+    : [];
+  const clientPaidOrders = clientOrderGroups.filter((group) => orderStatusName(group.representative) === 'pagado');
+  const clientPendingOrders = clientOrderGroups.filter((group) => orderStatusName(group.representative) === 'pendiente');
+  const clientReadyOrders = clientOrderGroups.filter((group) => ['listo', 'preparacion', 'preparación'].includes(orderStatusName(group.representative)));
+
+  function orderStatusName(order: OrderItem) {
+    return (order.estadoPedido?.nombreEstado ?? '').trim().toLowerCase();
+  }
+
+  function parseNumericId(value: unknown) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function orderClientId(order: OrderItem) {
+    const rawClientId = (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).idCliente
+      ?? (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).clienteId
+      ?? (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).id_cliente
+      ?? (order.cliente as { id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawClientId);
+  }
+
+  function orderLegacyUserId(order: OrderItem) {
+    const rawUserId = (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).idUsuario
+      ?? (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).usuarioId
+      ?? (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).id_usuario;
+    return parseNumericId(rawUserId);
+  }
+
+  function orderBelongsToSession(order: OrderItem) {
+    if (!session || session.tipoUsuario !== 'cliente') return false;
+    const sessionId = parseNumericId(session.id);
+    if (!sessionId) return false;
+    return orderClientId(order) === sessionId || orderLegacyUserId(order) === sessionId;
+  }
+
+  function detailOrderId(detail: OrderDetailItem) {
+    const rawOrderId = (detail as { pedidoId?: unknown; idPedido?: unknown }).pedidoId
+      ?? (detail as { pedidoId?: unknown; idPedido?: unknown }).idPedido
+      ?? (detail.pedido as { idPedido?: unknown; id?: unknown } | null | undefined)?.idPedido
+      ?? (detail.pedido as { idPedido?: unknown; id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawOrderId);
+  }
+
+  function detailProductId(detail: OrderDetailItem) {
+    const rawProductId = (detail as { productoId?: unknown; idProducto?: unknown }).productoId
+      ?? (detail as { productoId?: unknown; idProducto?: unknown }).idProducto
+      ?? (detail.producto as { id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawProductId);
+  }
+
+  function detailProductName(detail: OrderDetailItem) {
+    const directName = (detail as { nombreProducto?: unknown }).nombreProducto;
+    if (typeof detail.producto?.nombreProducto === 'string' && detail.producto.nombreProducto.trim()) {
+      return detail.producto.nombreProducto;
+    }
+    if (typeof directName === 'string' && directName.trim()) {
+      return directName;
+    }
+    const productId = detailProductId(detail);
+    if (productId) {
+      const fromCatalog = products.find((product) => product.id === productId)?.nombreProducto;
+      if (fromCatalog) return fromCatalog;
+    }
+    return 'Producto';
+  }
+
+  function detailSummary(detail: OrderDetailItem) {
+    return `${detailProductName(detail)} x${detail.cantidad}`;
+  }
+
+  function orderProductName(order: OrderItem) {
+    const directName = (order as { nombreProducto?: unknown }).nombreProducto;
+    if (typeof order.producto?.nombreProducto === 'string' && order.producto.nombreProducto.trim()) {
+      return order.producto.nombreProducto;
+    }
+    if (typeof directName === 'string' && directName.trim()) {
+      return directName;
+    }
+    const rawProductId = (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).idProducto
+      ?? (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).productoId
+      ?? (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).id_producto
+      ?? (order.producto as { id?: unknown } | null | undefined)?.id;
+    const productId = parseNumericId(rawProductId);
+    if (productId) {
+      return products.find((product) => product.id === productId)?.nombreProducto ?? null;
+    }
+    return null;
+  }
+
+  function orderSummaryFallback(order: OrderItem) {
+    const productName = orderProductName(order);
+    if (!productName) return null;
+    return `${productName} x1`;
+  }
+
+  function detailsForOrder(orderId: number) {
+    const cached = clientOrderDetails[orderId];
+    if (cached?.length) return cached;
+    return orderDetails.filter((detail) => detailOrderId(detail) === orderId);
+  }
 
   function normalizeView(rol: string): View {
     const normalizedRole = rol.trim().toLowerCase();
@@ -381,6 +523,34 @@ export default function App() {
         return name.startsWith(normalizedValue) || sku.startsWith(normalizedValue) || brand.startsWith(normalizedValue) || name.includes(normalizedValue);
       })
       .slice(0, 6);
+  }
+
+  async function loadClientAccountDetails() {
+    if (!session || session.tipoUsuario !== 'cliente') {
+      setShowLogin(true);
+      setStatusMessage('Debes iniciar sesion para ver tus movimientos y pedidos.');
+      return;
+    }
+
+    setClientAccountLoading(true);
+    try {
+      const missingOrders = clientOrders.filter((order) => !clientOrderDetails[order.idPedido]);
+      if (missingOrders.length) {
+        const detailEntries = await Promise.all(
+          missingOrders.map(async (order) => [order.idPedido, await api.getOrderDetails(order.idPedido)] as const),
+        );
+        setClientOrderDetails((current) => ({
+          ...current,
+          ...Object.fromEntries(detailEntries),
+        }));
+      }
+      setShowClientAccount(true);
+      setStatusMessage('Movimientos y pedidos de tu cuenta cargados.');
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    } finally {
+      setClientAccountLoading(false);
+    }
   }
 
   function goTo(pathname: string) {
@@ -532,6 +702,7 @@ export default function App() {
     }
     setSession(null);
     setActiveView('cliente');
+    setShowClientAccount(false);
   }
 
   async function submitClientRegistration(event: FormEvent<HTMLFormElement>) {
@@ -759,6 +930,24 @@ export default function App() {
 
         <div className="header-actions">
           <button className="ghost-button" type="button" onClick={loadData}>{loading ? 'Cargando...' : 'Actualizar'}</button>
+          {session?.tipoUsuario === 'cliente' && (
+            <button
+              className="ghost-button"
+              type="button"
+              disabled={clientAccountLoading}
+              onClick={() => {
+                if (showClientAccount) {
+                  setShowClientAccount(false);
+                  return;
+                }
+                setActiveView('cliente');
+                goTo('/');
+                void loadClientAccountDetails();
+              }}
+            >
+              {showClientAccount ? 'Ocultar mi cuenta' : 'Ver mi cuenta'}
+            </button>
+          )}
           {session ? (
             <button className="account-button" type="button" onClick={logout}>
               <span>{session.nombre}</span>
@@ -914,10 +1103,13 @@ export default function App() {
               <option value="efectivo">Efectivo</option>
             </select>
           </label>
-          {!session && <button className="primary-button full-button" type="button" onClick={() => setShowLogin(true)}>Iniciar sesion para comprar</button>}
+          {session?.tipoUsuario !== 'cliente' && (
+            <button className="primary-button full-button" type="button" onClick={() => setShowLogin(true)}>Iniciar sesion para comprar</button>
+          )}
         </aside>
 
         <section className="product-grid">
+          {showClientAccount && renderClientAccountPanel()}
           {visibleProducts.map((product) => {
             const productInventories = inventoriesForProduct(product.id);
             const availableInventories = productInventories.filter((item) => item.stockActual > 0);
@@ -968,6 +1160,110 @@ export default function App() {
           setCheckoutModalOpen(true);
         }, 'Carro de compra')}
       </section>
+    );
+  }
+
+  function renderClientAccountPanel() {
+    return (
+      <article className="panel-card client-account-panel">
+        <div className="card-head">
+          <div>
+            <h3>Mi cuenta</h3>
+            <p className="muted-copy">Pedidos, estados de compra y movimientos registrados para {session?.nombre ?? 'tu cuenta'}.</p>
+          </div>
+          <span>{clientOrderGroups.length}</span>
+        </div>
+
+        <div className="metric-grid">
+          <div><strong>{clientPaidOrders.length}</strong><p>Pagados</p></div>
+          <div><strong>{clientPendingOrders.length}</strong><p>Pendientes</p></div>
+          <div><strong>{clientReadyOrders.length}</strong><p>Listos por enviar</p></div>
+          <div><strong>{clientMovements.length}</strong><p>Movimientos</p></div>
+        </div>
+
+        <div className="client-account-section">
+          <div className="card-head"><h3>Mis pedidos</h3><span>{clientOrderGroups.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Pedido</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th><th>Productos</th></tr></thead>
+              <tbody>
+                {clientOrderGroups.length === 0 ? (
+                  <tr><td colSpan={6}>Aun no tienes pedidos registrados.</td></tr>
+                ) : clientOrderGroups.map((group) => {
+                  const detailsByGroup = group.orders.flatMap((order) => detailsForOrder(order.idPedido));
+                  const details = detailsByGroup.filter((detail, index, array) =>
+                    array.findIndex((candidate) => candidate.idDetalle === detail.idDetalle) === index,
+                  );
+                  const fallbackSummaries = group.orders
+                    .map((order) => orderSummaryFallback(order))
+                    .filter((item): item is string => Boolean(item));
+                  const uniqueFallbackSummaries = fallbackSummaries.filter((item, index, array) => array.indexOf(item) === index);
+                  const productSummaries = details.length > 0
+                    ? details.map(detailSummary)
+                    : (uniqueFallbackSummaries.length > 0 ? uniqueFallbackSummaries : ['por confirmar']);
+                  const hasManyProducts = productSummaries.length > 1;
+                  const expanded = Boolean(expandedOrderProducts[group.displayOrderId]);
+                  const collapsedText = productSummaries.slice(0, 2).join(', ');
+                  const needsEllipsis = productSummaries.length > 2;
+                  const summaryText = expanded
+                    ? productSummaries.join(', ')
+                    : `${collapsedText}${needsEllipsis ? ', ...' : ''}`;
+                  return (
+                    <tr key={group.key}>
+                      <td>#{group.displayOrderId}</td>
+                      <td>{group.representative.estadoPedido?.nombreEstado ?? '-'}</td>
+                      <td>{group.representative.metodoPago ?? '-'}</td>
+                      <td>{money(group.total)}</td>
+                      <td>{group.representative.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                      <td>
+                        <div className="order-products-list">
+                          <span className={expanded ? 'order-products-expanded' : 'order-products-collapsed'}>
+                            {summaryText}
+                          </span>
+                          {hasManyProducts && (
+                            <button
+                              className="order-products-toggle"
+                              type="button"
+                              onClick={() => setExpandedOrderProducts((current) => ({
+                                ...current,
+                                [group.displayOrderId]: !current[group.displayOrderId],
+                              }))}
+                            >
+                              {expanded ? 'Ver menos' : 'Mas detalle'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="client-account-section">
+          <div className="card-head"><h3>Movimientos de la cuenta</h3><span>{clientMovements.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Modulo</th><th>Accion</th><th>Descripcion</th><th>Entidad</th></tr></thead>
+              <tbody>
+                {clientMovements.length === 0 ? (
+                  <tr><td colSpan={5}>Aun no hay movimientos registrados para esta cuenta.</td></tr>
+                ) : clientMovements.map((log) => (
+                  <tr key={log.idLog}>
+                    <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                    <td>{log.modulo}</td>
+                    <td>{log.accion}</td>
+                    <td>{log.descripcion ?? '-'}</td>
+                    <td>{log.entidad ? `${log.entidad} #${log.entidadId ?? '-'}` : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
     );
   }
 

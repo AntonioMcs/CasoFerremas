@@ -105,13 +105,18 @@ CREATE TABLE pedidos (
     metodo_pago VARCHAR(50),
     tipo_entrega VARCHAR(50),
     total NUMERIC(12,2) CHECK (total >= 0),
+    grupo_compra_id VARCHAR(64),
+    pedido_referencia INTEGER,
     id_estado INTEGER,
     id_cliente INTEGER,
     id_trabajador INTEGER,
+    id_producto INTEGER,
     id_usuario INTEGER, -- LEGACY: existe en Supabase, no lo usa el codigo nuevo.
     CONSTRAINT fk_pedido_estado FOREIGN KEY (id_estado) REFERENCES estados_pedido(id_estado),
     CONSTRAINT fk_pedido_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-    CONSTRAINT fk_pedido_trabajador FOREIGN KEY (id_trabajador) REFERENCES trabajadores(id_trabajador)
+    CONSTRAINT fk_pedido_trabajador FOREIGN KEY (id_trabajador) REFERENCES trabajadores(id_trabajador),
+    CONSTRAINT fk_pedido_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT fk_pedido_referencia FOREIGN KEY (pedido_referencia) REFERENCES pedidos(id_pedido)
 );
 
 CREATE TABLE detalle_pedido (

@@ -116,13 +116,28 @@ export type OrderStatusItem = {
 
 export type OrderItem = {
   idPedido: number;
+  idCliente?: number | null;
+  idUsuario?: number | null;
+  idProducto?: number | null;
   cliente?: Cliente | null;
   trabajador?: Trabajador | null;
   estadoPedido?: OrderStatusItem | null;
+  producto?: Product | null;
   fechaPedido?: string | null;
   total?: number | string | null;
   metodoPago?: string | null;
   tipoEntrega?: string | null;
+  grupoCompraId?: string | null;
+  pedidoReferencia?: number | null;
+};
+
+export type OrderDetailItem = {
+  idDetalle: number;
+  pedido?: OrderItem | null;
+  producto?: Product | null;
+  cantidad: number;
+  precioUnitario?: number | string | null;
+  subtotal?: number | string | null;
 };
 
 export type TransbankResponse = {
@@ -137,6 +152,9 @@ export type TransbankResponse = {
 
 export type SaleResponse = {
   pedido: OrderItem;
+  pedidos?: OrderItem[];
+  pedidoPrincipalId?: number | null;
+  grupoCompraId?: string | null;
   transbankResponse?: TransbankResponse | null;
 };
 

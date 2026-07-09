@@ -359,6 +359,60 @@ p {
   overflow: hidden;
 }
 
+.client-account-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 18px;
+}
+
+.client-account-section {
+  display: grid;
+  gap: 12px;
+}
+
+.order-products-list {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.order-products-list span {
+  color: #e2e8f0;
+}
+
+.order-products-collapsed,
+.order-products-expanded {
+  line-height: 1.35;
+  color: #e2e8f0;
+}
+
+.order-products-collapsed {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-products-expanded {
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.order-products-toggle {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #fbbf24;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.order-products-toggle:hover {
+  opacity: 0.86;
+}
+
 .image-wrap {
   position: relative;
   height: 210px;

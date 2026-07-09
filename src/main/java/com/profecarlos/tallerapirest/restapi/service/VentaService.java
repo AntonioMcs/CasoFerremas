@@ -2,7 +2,9 @@ package com.profecarlos.tallerapirest.restapi.service;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Locale;
+import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,16 +73,12 @@ public class VentaService {
         String estadoNombre = "efectivo".equals(metodoPago) ? "pagado" : "pendiente";
         EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
 
-        Pedido pedido = new Pedido();
-        pedido.setCliente(cliente);
-        pedido.setTrabajador(trabajador);
-        pedido.setEstadoPedido(estado);
-        pedido.setMetodoPago(metodoPago);
-        pedido.setTipoEntrega(dto.getTipoEntrega());
-        pedido.setTotal(BigDecimal.ZERO);
-        Pedido guardado = pedidoRepository.save(pedido);
+        String grupoCompraId = "GRP_" + UUID.randomUUID();
+        BigDecimal totalGlobal = BigDecimal.ZERO;
+        Integer pedidoReferencia = null;
+        Pedido pedidoPrincipal = null;
+        ArrayList<Pedido> pedidosGenerados = new ArrayList<>();
 
-        BigDecimal total = BigDecimal.ZERO;
         for (VentaItemDTO item : dto.getItems()) {
             Product producto = productRepository.findById(item.getProductoId())
                     .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + item.getProductoId()));
@@ -93,6 +91,25 @@ public class VentaService {
             inventarioRepository.save(inventario);
 
             BigDecimal subtotal = producto.getPrecio().multiply(BigDecimal.valueOf(item.getCantidad()));
+
+            Pedido pedido = new Pedido();
+            pedido.setCliente(cliente);
+            pedido.setTrabajador(trabajador);
+            pedido.setEstadoPedido(estado);
+            pedido.setMetodoPago(metodoPago);
+            pedido.setTipoEntrega(dto.getTipoEntrega());
+            pedido.setProducto(producto);
+            pedido.setGrupoCompraId(grupoCompraId);
+            pedido.setTotal(subtotal);
+            Pedido guardado = pedidoRepository.save(pedido);
+
+            if (pedidoReferencia == null) {
+                pedidoReferencia = guardado.getIdPedido();
+                pedidoPrincipal = guardado;
+            }
+            guardado.setPedidoReferencia(pedidoReferencia);
+            guardado = pedidoRepository.save(guardado);
+
             DetallePedido detalle = new DetallePedido();
             detalle.setPedido(guardado);
             detalle.setProducto(producto);
@@ -100,18 +117,27 @@ public class VentaService {
             detalle.setPrecioUnitario(producto.getPrecio());
             detalle.setSubtotal(subtotal);
             detallePedidoRepository.save(detalle);
-            total = total.add(subtotal);
+
+            totalGlobal = totalGlobal.add(subtotal);
+            pedidosGenerados.add(guardado);
         }
 
-        guardado.setTotal(total);
-        guardado = pedidoRepository.save(guardado);
+        if (pedidoPrincipal == null) {
+            throw new IllegalArgumentException("No se pudo generar el pedido");
+        }
+
+        pedidoPrincipal.setTotal(totalGlobal);
+        pedidoPrincipal = pedidoRepository.save(pedidoPrincipal);
 
         VentaResponseDTO responseDTO = new VentaResponseDTO();
-        responseDTO.setPedido(guardado);
+        responseDTO.setPedido(pedidoPrincipal);
+        responseDTO.setPedidos(pedidosGenerados);
+        responseDTO.setPedidoPrincipalId(pedidoPrincipal.getIdPedido());
+        responseDTO.setGrupoCompraId(grupoCompraId);
 
         Pago pago = new Pago();
-        pago.setPedido(guardado);
-        pago.setMonto(total);
+        pago.setPedido(pedidoPrincipal);
+        pago.setMonto(totalGlobal);
         pago.setMetodoPago("TRANSBANK");
         pago.setEstadoPago("PENDIENTE");
         pago.setFechaPago(LocalDateTime.now());
@@ -120,9 +146,9 @@ public class VentaService {
         if ("tarjeta".equals(metodoPago)) {
             String retorno = "http://localhost:5173/transbank-return?pagoId=" + pago.getIdPago();
             try {
-                String ordenCompra = "PEDIDO_" + guardado.getIdPedido();
-                String sesionId = "SESION_" + guardado.getIdPedido();
-                TransbankTransactionResponse transbankResponse = transbankService.crearTransaccion(total, ordenCompra, sesionId, retorno);
+                String ordenCompra = "PEDIDO_" + pedidoPrincipal.getIdPedido();
+                String sesionId = "SESION_" + pedidoPrincipal.getIdPedido();
+                TransbankTransactionResponse transbankResponse = transbankService.crearTransaccion(totalGlobal, ordenCompra, sesionId, retorno);
                 String status = transbankResponse.getStatus() != null ? transbankResponse.getStatus().trim().toUpperCase(Locale.ROOT) : "PENDING";
                 pago.setEstadoPago("PENDING".equals(status) ? "PENDIENTE" : "PROCESANDO");
                 pago.setMetodoPago("TRANSBANK");

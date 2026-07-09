@@ -9,6 +9,7 @@ import type {
   InventoryFormState,
   InventoryItem,
   LoginRequest,
+  OrderDetailItem,
   OrderItem,
   Product,
   ProductFormState,
@@ -203,6 +204,16 @@ export const api = {
 
   async getPendingTransfers(): Promise<OrderItem[]> {
     const { data } = await client.get('/api/v1/pedidos/pendientes-transferencia');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getAllOrderDetails(): Promise<OrderDetailItem[]> {
+    const { data } = await client.get('/api/v1/detalles-pedido');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getOrderDetails(orderId: number): Promise<OrderDetailItem[]> {
+    const { data } = await client.get(`/api/v1/detalles-pedido/pedido/${orderId}`);
     return Array.isArray(data) ? data : [];
   },
 
