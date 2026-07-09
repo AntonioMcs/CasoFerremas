@@ -76,6 +76,43 @@ const fallbackImage =
 const money = (value: number | string | null | undefined) =>
   Number(value ?? 0).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
 
+const openTransbankPayment = (url: string, token: string, targetName?: string) => {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = url;
+  form.target = targetName || '_blank';
+  form.style.display = 'none';
+
+  const tokenWsInput = document.createElement('input');
+  tokenWsInput.type = 'hidden';
+  tokenWsInput.name = 'token_ws';
+  tokenWsInput.value = token;
+  form.appendChild(tokenWsInput);
+
+  const tbkTokenInput = document.createElement('input');
+  tbkTokenInput.type = 'hidden';
+  tbkTokenInput.name = 'TBK_TOKEN';
+  tbkTokenInput.value = token;
+  form.appendChild(tbkTokenInput);
+
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+};
+
+const prepareTransbankWindow = () => {
+  const targetName = `transbank_pago_${Date.now()}`;
+  const paymentWindow = window.open('', targetName, 'width=1100,height=800');
+
+  if (paymentWindow) {
+    paymentWindow.document.title = 'Pago Transbank';
+    paymentWindow.document.body.innerHTML = '<p style="font-family:Arial,sans-serif;padding:24px">Preparando pago seguro...</p>';
+    paymentWindow.focus();
+  }
+
+  return { targetName, paymentWindow };
+};
+
 const roleLabels: Record<View, string> = {
   cliente: 'Tienda',
   vendedor: 'Ventas',
@@ -528,6 +565,8 @@ export default function App() {
       items: cart.map(({ productoId, inventarioId, sucursal, cantidad }) => ({ productoId, inventarioId, sucursal: sucursal ?? undefined, cantidad })),
     };
 
+    const transbankWindow = metodoPago === 'tarjeta' ? prepareTransbankWindow() : null;
+
     try {
       setStatusMessage('Procesando venta y descontando stock...');
       const saleResponse = kind === 'cliente'
@@ -542,40 +581,23 @@ export default function App() {
       );
 
       if (saleResponse.transbankResponse?.url) {
-        setStatusMessage('Redirigiendo a Transbank para completar el pago...');
+        setStatusMessage('Abriendo Transbank en una ventana nueva. Mantén esta pestaña abierta mientras completas el pago.');
         const tokenValue = saleResponse.transbankResponse.token
           ?? saleResponse.transbankResponse.transactionId
           ?? saleResponse.transbankResponse.authorizationCode
           ?? '';
 
         if (!tokenValue) {
+          transbankWindow?.paymentWindow?.close();
           setStatusMessage('Error: token Transbank no disponible.');
           return;
         }
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = saleResponse.transbankResponse.url;
-        form.target = '_self';
-        form.style.display = 'none';
-
-        const tokenWsInput = document.createElement('input');
-        tokenWsInput.type = 'hidden';
-        tokenWsInput.name = 'token_ws';
-        tokenWsInput.value = tokenValue;
-        form.appendChild(tokenWsInput);
-
-        const tbkTokenInput = document.createElement('input');
-        tbkTokenInput.type = 'hidden';
-        tbkTokenInput.name = 'TBK_TOKEN';
-        tbkTokenInput.value = tokenValue;
-        form.appendChild(tbkTokenInput);
-
-        document.body.appendChild(form);
-        form.submit();
+        openTransbankPayment(saleResponse.transbankResponse.url, tokenValue, transbankWindow?.targetName);
         return;
       }
 
+      transbankWindow?.paymentWindow?.close();
       if (kind === 'cliente') {
         setClientCart([]);
       } else {
@@ -585,6 +607,7 @@ export default function App() {
       await loadData();
       setStatusMessage('Venta registrada correctamente. Stock actualizado.');
     } catch (error) {
+      transbankWindow?.paymentWindow?.close();
       setStatusMessage(error instanceof Error ? error.message : 'No se pudo registrar la venta.');
     }
   }
@@ -801,7 +824,7 @@ export default function App() {
             {visibleView === 'cliente' && renderStorefront()}
             {visibleView === 'vendedor' && renderSeller()}
             {visibleView === 'bodeguero' && renderWarehouse()}
-            {visibleView === 'contador' && renderAccounting()}
+            {visibleView === 'contador' && renderTransferAccounting()}
             {visibleView === 'admin' && renderAdmin()}
           </>
         )}
@@ -1031,6 +1054,28 @@ export default function App() {
     }
   }
 
+  async function handleTransferDecision(order: OrderItem, accepted: boolean) {
+    const nextStatus = accepted ? 'pagado' : 'pendiente';
+    try {
+      await api.updateOrderStatus(order.idPedido, nextStatus);
+      await logMovement(
+        'contabilidad',
+        accepted ? 'ACEPTAR_TRANSFERENCIA' : 'DENEGAR_TRANSFERENCIA',
+        `Transferencia del pedido #${order.idPedido} ${accepted ? 'aceptada' : 'denegada'} para ${order.cliente?.nombre ?? 'cliente sin nombre'}`,
+        'PEDIDO',
+        order.idPedido,
+      );
+      await loadData();
+      setStatusMessage(
+        accepted
+          ? `Transferencia del pedido #${order.idPedido} aceptada. Pedido marcado como pagado.`
+          : `Transferencia del pedido #${order.idPedido} denegada. Pedido queda como pendiente.`,
+      );
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
+  }
+
   function renderWarehouse() {
     const pendingOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente' || (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'listo');
     return (
@@ -1101,60 +1146,79 @@ export default function App() {
     );
   }
 
-  function renderAccounting() {
-    const pendingReviewOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente');
+  function renderTransferAccounting() {
+    const transferOrders = orders.filter((order) => (order.metodoPago ?? '').toLowerCase() === 'transferencia');
+    const acceptedTransfers = transferOrders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pagado');
+    const pendingTransferTotal = pendingTransfers.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+
     return (
-      <section className="panel-grid">
+      <section className="admin-stack accounting-stack">
         <article className="panel-card">
-          <div className="card-head"><h3>Panel de contabilidad</h3><span>Operaciones</span></div>
-          <div className="admin-module-grid">
-            <article className="panel-card admin-module-card active">
-              <strong>Pedidos pendientes</strong>
-              <p>Marca los pedidos que ya están listos para despacho.</p>
-            </article>
-            <article className="panel-card admin-module-card active">
-              <strong>Reportes</strong>
-              <p>Revisa el resumen de ventas, pagos y auditoría.</p>
-            </article>
+          <div className="card-head">
+            <div>
+              <h3>Contabilidad - Transferencias</h3>
+              <p className="muted-copy">Revisa los datos del cliente y confirma o deniega los pagos por transferencia.</p>
+            </div>
+            <span>{pendingTransfers.length}</span>
+          </div>
+          <div className="metric-grid">
+            <div><strong>{pendingTransfers.length}</strong><p>Pendientes</p></div>
+            <div><strong>{acceptedTransfers.length}</strong><p>Aceptadas</p></div>
+            <div><strong>{transferOrders.length}</strong><p>Transferencias</p></div>
+            <div><strong>{money(pendingTransferTotal)}</strong><p>Monto pendiente</p></div>
           </div>
         </article>
-        <article className="panel-card metric-card">
-          <p className="sidebar-label">Ventas registradas</p>
-          <strong>{money(totalSales)}</strong>
-          <p className="muted-copy">{orders.length} pedidos totales - {pendingTransfers.length} transferencias pendientes</p>
-        </article>
+
         <article className="panel-card list-card">
-          <div className="card-head"><h3>Productos y pedidos pendientes</h3><span>{pendingReviewOrders.length}</span></div>
+          <div className="card-head"><h3>Transferencias por confirmar</h3><span>{pendingTransfers.length}</span></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Accion</th></tr></thead>
-              <tbody>{pendingReviewOrders.map((order) => (
-                <tr key={order.idPedido}>
-                  <td>{order.idPedido}</td>
-                  <td>{order.cliente?.nombre ?? '-'}</td>
-                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
-                  <td>{order.metodoPago ?? '-'}</td>
-                  <td><button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'listo')}>Marcar listo</button></td>
-                </tr>
-              ))}</tbody>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Rut</th><th>Email</th><th>Total</th><th>Fecha</th><th>Estado</th><th>Accion</th></tr></thead>
+              <tbody>
+                {pendingTransfers.length === 0 ? (
+                  <tr><td colSpan={8}>No hay transferencias pendientes.</td></tr>
+                ) : pendingTransfers.map((order) => (
+                  <tr key={order.idPedido}>
+                    <td>#{order.idPedido}</td>
+                    <td>{order.cliente?.nombre ?? '-'}</td>
+                    <td>{order.cliente?.rut ?? '-'}</td>
+                    <td>{order.cliente?.email ?? '-'}</td>
+                    <td>{money(order.total)}</td>
+                    <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                    <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                    <td>
+                      <div className="transfer-actions">
+                        <button className="edit-button" type="button" onClick={() => void handleTransferDecision(order, true)}>Aceptar</button>
+                        <button className="danger-button" type="button" onClick={() => void handleTransferDecision(order, false)}>Denegar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </article>
+
         <article className="panel-card list-card">
-          <div className="card-head"><h3>Compras y pendientes</h3><span>{orders.length}</span></div>
+          <div className="card-head"><h3>Registro de transferencias</h3><span>{transferOrders.length}</span></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th></tr></thead>
-              <tbody>{orders.map((order) => (
-                <tr key={order.idPedido}>
-                  <td>{order.idPedido}</td>
-                  <td>{order.cliente?.nombre ?? '-'}</td>
-                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
-                  <td>{order.metodoPago ?? '-'}</td>
-                  <td>{money(order.total)}</td>
-                  <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
-                </tr>
-              ))}</tbody>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Email</th><th>Telefono</th><th>Estado pedido</th><th>Total</th><th>Fecha</th></tr></thead>
+              <tbody>
+                {transferOrders.length === 0 ? (
+                  <tr><td colSpan={7}>Aun no hay compras por transferencia.</td></tr>
+                ) : transferOrders.map((order) => (
+                  <tr key={order.idPedido}>
+                    <td>#{order.idPedido}</td>
+                    <td>{order.cliente?.nombre ?? '-'}</td>
+                    <td>{order.cliente?.email ?? '-'}</td>
+                    <td>{order.cliente?.telefono ?? '-'}</td>
+                    <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                    <td>{money(order.total)}</td>
+                    <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </article>
@@ -1759,3 +1823,4 @@ export default function App() {
     );
   }
 }
+

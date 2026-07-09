@@ -1,6 +1,7 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,6 +21,7 @@ import com.profecarlos.tallerapirest.restapi.model.Pedido;
 import com.profecarlos.tallerapirest.restapi.model.Trabajador;
 import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.PagoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
 import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
@@ -35,15 +37,17 @@ public class PedidoController {
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
+    private final PagoRepository pagoRepository;
     private final AuditLogService auditLogService;
 
     public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
             TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
-            AuditLogService auditLogService) {
+            PagoRepository pagoRepository, AuditLogService auditLogService) {
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.pagoRepository = pagoRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -75,16 +79,61 @@ public class PedidoController {
     }
 
     @PutMapping("/{id}/estado")
-    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody String nombreEstado) {
+    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody Object estadoRequest) {
         return pedidoRepository.findById(id).map(pedido -> {
-            String estadoNombre = nombreEstado.trim().toLowerCase();
-            EstadoPedido estado = estadoPedidoRepository.findByNombreEstadoIgnoreCase(estadoNombre)
-                    .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
+            String estadoNombre = extraerNombreEstado(estadoRequest);
+            EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
             pedido.setEstadoPedido(estado);
             Pedido guardado = pedidoRepository.save(pedido);
+            sincronizarPagoTransferencia(guardado, estadoNombre);
             auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
             return ResponseEntity.ok(guardado);
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private String extraerNombreEstado(Object estadoRequest) {
+        String estadoNombre = null;
+
+        if (estadoRequest instanceof String raw) {
+            estadoNombre = raw;
+        } else if (estadoRequest instanceof Map<?, ?> body) {
+            Object value = body.get("estado");
+            if (value == null) {
+                value = body.get("nombreEstado");
+            }
+            estadoNombre = value == null ? null : value.toString();
+        }
+
+        if (estadoNombre == null || estadoNombre.trim().isBlank()) {
+            throw new IllegalArgumentException("El estado del pedido es requerido");
+        }
+
+        return estadoNombre.trim().replace("\"", "").toLowerCase();
+    }
+
+    private EstadoPedido obtenerEstadoPedido(String estadoNombre) {
+        List<EstadoPedido> estados = estadoPedidoRepository.findAllByNombreEstadoIgnoreCaseOrderByIdEstadoAsc(estadoNombre);
+        if (!estados.isEmpty()) {
+            return estados.get(0);
+        }
+        return estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre));
+    }
+
+    private void sincronizarPagoTransferencia(Pedido pedido, String estadoNombre) {
+        if (pedido.getMetodoPago() == null || !"transferencia".equalsIgnoreCase(pedido.getMetodoPago())) {
+            return;
+        }
+
+        pagoRepository.findAllByPedidoIdPedidoOrderByIdPagoAsc(pedido.getIdPedido()).forEach(pago -> {
+            if ("pagado".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PAGADO");
+            } else if ("pendiente".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PENDIENTE");
+            } else {
+                return;
+            }
+            pagoRepository.save(pago);
+        });
     }
 
     @PostMapping

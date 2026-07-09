@@ -69,8 +69,7 @@ public class VentaService {
 
         String metodoPago = dto.getMetodoPago() == null ? "" : dto.getMetodoPago().trim().toLowerCase(Locale.ROOT);
         String estadoNombre = "efectivo".equals(metodoPago) ? "pagado" : "pendiente";
-        EstadoPedido estado = estadoPedidoRepository.findByNombreEstado(estadoNombre)
-                .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
+        EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
 
         Pedido pedido = new Pedido();
         pedido.setCliente(cliente);
@@ -159,6 +158,12 @@ public class VentaService {
             responseDTO.setTransbankResponse(null);
             return responseDTO;
         }
+    }
+
+    private EstadoPedido obtenerEstadoPedido(String estadoNombre) {
+        return estadoPedidoRepository.findAllByNombreEstadoIgnoreCaseOrderByIdEstadoAsc(estadoNombre).stream()
+                .findFirst()
+                .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
     }
 
     private Inventario resolverInventario(VentaItemDTO item) {

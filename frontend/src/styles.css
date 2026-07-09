@@ -653,6 +653,12 @@ tbody tr:hover {
   font-weight: 800;
 }
 
+.transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
 .clickable-card {
   cursor: pointer;
 }

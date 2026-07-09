@@ -222,7 +222,7 @@ export const api = {
   },
 
   async updateOrderStatus(id: number, estado: string): Promise<OrderItem> {
-    const { data } = await client.put(`/api/v1/pedidos/${id}/estado`, estado);
+    const { data } = await client.put(`/api/v1/pedidos/${id}/estado`, { estado });
     return data;
   },
 
