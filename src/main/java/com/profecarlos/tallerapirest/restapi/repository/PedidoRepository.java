@@ -15,5 +15,9 @@ public interface PedidoRepository extends JpaRepository<Pedido, Integer> {
     List<Pedido> findByMetodoPagoAndEstadoPedidoNombreEstadoIgnoreCase(String metodoPago, String nombreEstado);
 
     List<Pedido> findByEstadoPedidoNombreEstadoIgnoreCase(String nombreEstado);
+
+    List<Pedido> findByGrupoCompraId(String grupoCompraId);
+
+    List<Pedido> findByGrupoCompraIdOrderByIdPedidoAsc(String grupoCompraId);
 }
 

@@ -116,13 +116,18 @@ export type OrderStatusItem = {
 
 export type OrderItem = {
   idPedido: number;
+  idCliente?: number | null;
+  idUsuario?: number | null;
+  idProducto?: number | null;
   cliente?: Cliente | null;
   trabajador?: Trabajador | null;
   estadoPedido?: OrderStatusItem | null;
+  producto?: Product | null;
   fechaPedido?: string | null;
   total?: number | string | null;
   metodoPago?: string | null;
   tipoEntrega?: string | null;
+<<<<<<< HEAD
   direccionEntrega?: string | null;
   comunaEntrega?: string | null;
   sucursalRetiro?: string | null;
@@ -131,6 +136,19 @@ export type OrderItem = {
   iva?: number | string | null;
   boletaEmitida?: boolean | null;
   fechaBoleta?: string | null;
+=======
+  grupoCompraId?: string | null;
+  pedidoReferencia?: number | null;
+};
+
+export type OrderDetailItem = {
+  idDetalle: number;
+  pedido?: OrderItem | null;
+  producto?: Product | null;
+  cantidad: number;
+  precioUnitario?: number | string | null;
+  subtotal?: number | string | null;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
 };
 
 export type TransbankResponse = {
@@ -145,6 +163,9 @@ export type TransbankResponse = {
 
 export type SaleResponse = {
   pedido: OrderItem;
+  pedidos?: OrderItem[];
+  pedidoPrincipalId?: number | null;
+  grupoCompraId?: string | null;
   transbankResponse?: TransbankResponse | null;
 };
 
@@ -209,4 +230,32 @@ export type SessionUser = {
   rol: 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin' | string;
   tipoUsuario: 'cliente' | 'trabajador' | string;
   comuna?: string | null;
+};
+
+export type AuditLog = {
+  idLog: number;
+  fecha?: string | null;
+  tipoUsuario: string;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  rol?: string | null;
+  modulo: string;
+  accion: string;
+  descripcion?: string | null;
+  entidad?: string | null;
+  entidadId?: number | null;
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
+export type AuditLogRequest = {
+  tipoUsuario: string;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  rol?: string | null;
+  modulo: string;
+  accion: string;
+  descripcion?: string | null;
+  entidad?: string | null;
+  entidadId?: number | null;
 };

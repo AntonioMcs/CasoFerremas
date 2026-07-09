@@ -16,6 +16,8 @@ public class PedidoDTO {
     @NotNull
     private Integer estadoId;
 
+    private Integer productoId;
+
     private LocalDateTime fechaPedido;
 
     private BigDecimal total;
@@ -26,9 +28,15 @@ public class PedidoDTO {
     @NotBlank
     private String tipoEntrega;
 
+<<<<<<< HEAD
     private String direccionEntrega;
     private String comunaEntrega;
     private String sucursalRetiro;
+=======
+    private String grupoCompraId;
+
+    private Integer pedidoReferencia;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
 
     public PedidoDTO() {
     }
@@ -55,6 +63,14 @@ public class PedidoDTO {
 
     public void setEstadoId(Integer estadoId) {
         this.estadoId = estadoId;
+    }
+
+    public Integer getProductoId() {
+        return productoId;
+    }
+
+    public void setProductoId(Integer productoId) {
+        this.productoId = productoId;
     }
 
     public LocalDateTime getFechaPedido() {
@@ -89,6 +105,7 @@ public class PedidoDTO {
         this.tipoEntrega = tipoEntrega;
     }
 
+<<<<<<< HEAD
     public String getDireccionEntrega() {
         return direccionEntrega;
     }
@@ -111,5 +128,21 @@ public class PedidoDTO {
 
     public void setSucursalRetiro(String sucursalRetiro) {
         this.sucursalRetiro = sucursalRetiro;
+=======
+    public String getGrupoCompraId() {
+        return grupoCompraId;
+    }
+
+    public void setGrupoCompraId(String grupoCompraId) {
+        this.grupoCompraId = grupoCompraId;
+    }
+
+    public Integer getPedidoReferencia() {
+        return pedidoReferencia;
+    }
+
+    public void setPedidoReferencia(Integer pedidoReferencia) {
+        this.pedidoReferencia = pedidoReferencia;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     }
 }

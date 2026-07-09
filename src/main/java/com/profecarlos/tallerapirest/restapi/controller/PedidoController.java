@@ -1,6 +1,7 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,7 +26,9 @@ import com.profecarlos.tallerapirest.restapi.model.Trabajador;
 import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
 import com.profecarlos.tallerapirest.restapi.repository.DetallePedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.PagoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
 import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
 
@@ -40,18 +43,32 @@ public class PedidoController {
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
+<<<<<<< HEAD
     private final DetallePedidoRepository detallePedidoRepository;
+=======
+    private final ProductRepository productRepository;
+    private final PagoRepository pagoRepository;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     private final AuditLogService auditLogService;
 
     public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
             TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
+<<<<<<< HEAD
             DetallePedidoRepository detallePedidoRepository,
             AuditLogService auditLogService) {
+=======
+            ProductRepository productRepository, PagoRepository pagoRepository, AuditLogService auditLogService) {
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+<<<<<<< HEAD
         this.detallePedidoRepository = detallePedidoRepository;
+=======
+        this.productRepository = productRepository;
+        this.pagoRepository = pagoRepository;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
         this.auditLogService = auditLogService;
     }
 
@@ -101,16 +118,72 @@ public class PedidoController {
     }
 
     @PutMapping("/{id}/estado")
-    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody String nombreEstado) {
+    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody Object estadoRequest) {
         return pedidoRepository.findById(id).map(pedido -> {
-            String estadoNombre = nombreEstado.trim().toLowerCase();
-            EstadoPedido estado = estadoPedidoRepository.findByNombreEstadoIgnoreCase(estadoNombre)
-                    .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
-            pedido.setEstadoPedido(estado);
-            Pedido guardado = pedidoRepository.save(pedido);
-            auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
-            return ResponseEntity.ok(guardado);
+            String estadoNombre = extraerNombreEstado(estadoRequest);
+            EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
+            List<Pedido> pedidosGrupo = pedido.getGrupoCompraId() == null || pedido.getGrupoCompraId().isBlank()
+                    ? List.of(pedido)
+                    : pedidoRepository.findByGrupoCompraIdOrderByIdPedidoAsc(pedido.getGrupoCompraId());
+
+            Pedido principal = pedido;
+            for (Pedido item : pedidosGrupo) {
+                item.setEstadoPedido(estado);
+                Pedido guardado = pedidoRepository.save(item);
+                if (guardado.getIdPedido().equals(item.getPedidoReferencia())) {
+                    principal = guardado;
+                }
+                sincronizarPagoTransferencia(guardado, estadoNombre);
+            }
+
+            auditLogService.registrar("PEDIDO", principal.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
+            return ResponseEntity.ok(principal);
         }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private String extraerNombreEstado(Object estadoRequest) {
+        String estadoNombre = null;
+
+        if (estadoRequest instanceof String raw) {
+            estadoNombre = raw;
+        } else if (estadoRequest instanceof Map<?, ?> body) {
+            Object value = body.get("estado");
+            if (value == null) {
+                value = body.get("nombreEstado");
+            }
+            estadoNombre = value == null ? null : value.toString();
+        }
+
+        if (estadoNombre == null || estadoNombre.trim().isBlank()) {
+            throw new IllegalArgumentException("El estado del pedido es requerido");
+        }
+
+        return estadoNombre.trim().replace("\"", "").toLowerCase();
+    }
+
+    private EstadoPedido obtenerEstadoPedido(String estadoNombre) {
+        List<EstadoPedido> estados = estadoPedidoRepository.findAllByNombreEstadoIgnoreCaseOrderByIdEstadoAsc(estadoNombre);
+        if (!estados.isEmpty()) {
+            return estados.get(0);
+        }
+        return estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre));
+    }
+
+    private void sincronizarPagoTransferencia(Pedido pedido, String estadoNombre) {
+        if (pedido.getMetodoPago() == null || !"transferencia".equalsIgnoreCase(pedido.getMetodoPago())) {
+            return;
+        }
+
+        pagoRepository.findAllByPedidoIdPedidoOrderByIdPagoAsc(pedido.getIdPedido()).forEach(pago -> {
+            if ("pagado".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PAGADO");
+            } else if ("pendiente".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PENDIENTE");
+            } else {
+                return;
+            }
+            pagoRepository.save(pago);
+        });
     }
 
     @PostMapping
@@ -181,6 +254,16 @@ public class PedidoController {
         pedido.setCliente(cliente);
         pedido.setTrabajador(trabajador);
         pedido.setEstadoPedido(estadoPedido);
+
+        Product producto = null;
+        if (dto.getProductoId() != null) {
+            producto = productRepository.findById(dto.getProductoId()).orElse(null);
+            if (producto == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
+            }
+        }
+        pedido.setProducto(producto);
+
         return null;
     }
 
@@ -189,9 +272,14 @@ public class PedidoController {
         pedido.setTotal(dto.getTotal());
         pedido.setMetodoPago(dto.getMetodoPago());
         pedido.setTipoEntrega(dto.getTipoEntrega());
+<<<<<<< HEAD
         pedido.setDireccionEntrega(dto.getDireccionEntrega());
         pedido.setComunaEntrega(dto.getComunaEntrega());
         pedido.setSucursalRetiro(dto.getSucursalRetiro());
+=======
+        pedido.setGrupoCompraId(dto.getGrupoCompraId());
+        pedido.setPedidoReferencia(dto.getPedidoReferencia());
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     }
 
     private ResponseEntity<?> validarDTO(PedidoDTO dto) {

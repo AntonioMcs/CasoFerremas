@@ -359,6 +359,60 @@ p {
   overflow: hidden;
 }
 
+.client-account-panel {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 18px;
+}
+
+.client-account-section {
+  display: grid;
+  gap: 12px;
+}
+
+.order-products-list {
+  display: grid;
+  gap: 6px;
+  min-width: 240px;
+}
+
+.order-products-list span {
+  color: #e2e8f0;
+}
+
+.order-products-collapsed,
+.order-products-expanded {
+  line-height: 1.35;
+  color: #e2e8f0;
+}
+
+.order-products-collapsed {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.order-products-expanded {
+  max-width: 520px;
+  white-space: normal;
+  word-break: break-word;
+}
+
+.order-products-toggle {
+  justify-self: start;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #fbbf24;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.order-products-toggle:hover {
+  opacity: 0.86;
+}
+
 .image-wrap {
   position: relative;
   height: 210px;
@@ -873,6 +927,31 @@ button:disabled {
   gap: 18px;
 }
 
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.metric-grid > div {
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.38);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.metric-grid strong {
+  display: block;
+  color: #f8fafc;
+  font-size: 1.55rem;
+}
+
+.metric-grid p {
+  margin: 4px 0 0;
+  color: #94a3b8;
+}
+
 .metric-card strong {
   display: block;
   color: #f8fafc;
@@ -1001,6 +1080,47 @@ tbody tr:hover {
   font-weight: 800;
 }
 
+.status-select {
+  min-width: 150px;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.72);
+  color: #f8fafc;
+  font-weight: 700;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 92px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.16);
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.status-pagado,
+.status-entregado {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.status-preparacion,
+.status-despachado {
+  background: rgba(56, 189, 248, 0.16);
+  color: #7dd3fc;
+}
+
+.status-pendiente {
+  background: rgba(251, 191, 36, 0.16);
+  color: #fde68a;
+}
+
 .danger-button {
   border: 0;
   border-radius: 8px;
@@ -1008,6 +1128,12 @@ tbody tr:hover {
   background: linear-gradient(135deg, #ef4444, #b91c1c);
   color: #fff;
   font-weight: 800;
+}
+
+.transfer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .clickable-card {
@@ -1168,6 +1294,33 @@ tbody tr:hover {
 
 .admin-action-panel .local-search {
   width: min(420px, 100%);
+}
+
+.audit-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.audit-toolbar select {
+  min-width: 260px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 8px;
+  outline: 0;
+  background: rgba(2, 6, 23, 0.64);
+  color: #f8fafc;
+}
+
+.audit-panel {
+  display: grid;
+  gap: 14px;
+  border-color: rgba(251, 191, 36, 0.28);
+}
+
+.audit-panel table {
+  min-width: 1100px;
 }
 
 .admin-edit-block {

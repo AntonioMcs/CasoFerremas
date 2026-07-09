@@ -2,12 +2,18 @@ import axios from 'axios';
 import type {
   CategoryFormState,
   CategoryItem,
+<<<<<<< HEAD
   BoletaPedido,
+=======
+  AuditLog,
+  AuditLogRequest,
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
   Cliente,
   ClienteFormState,
   InventoryFormState,
   InventoryItem,
   LoginRequest,
+  OrderDetailItem,
   OrderItem,
   Product,
   ProductFormState,
@@ -210,6 +216,16 @@ export const api = {
     return Array.isArray(data) ? data : [];
   },
 
+  async getAllOrderDetails(): Promise<OrderDetailItem[]> {
+    const { data } = await client.get('/api/v1/detalles-pedido');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getOrderDetails(orderId: number): Promise<OrderDetailItem[]> {
+    const { data } = await client.get(`/api/v1/detalles-pedido/pedido/${orderId}`);
+    return Array.isArray(data) ? data : [];
+  },
+
   async createClientSale(payload: SaleRequest): Promise<SaleResponse> {
     const { data } = await client.post('/api/v1/ventas/cliente', payload);
     return data;
@@ -226,7 +242,7 @@ export const api = {
   },
 
   async updateOrderStatus(id: number, estado: string): Promise<OrderItem> {
-    const { data } = await client.put(`/api/v1/pedidos/${id}/estado`, estado);
+    const { data } = await client.put(`/api/v1/pedidos/${id}/estado`, { estado });
     return data;
   },
 
@@ -240,8 +256,12 @@ export const api = {
     return data ?? {};
   },
 
-  async getAuditLogs(): Promise<unknown[]> {
+  async getAuditLogs(): Promise<AuditLog[]> {
     const { data } = await client.get('/api/v1/audit-logs');
     return Array.isArray(data) ? data : [];
+  },
+
+  async createAuditLog(payload: AuditLogRequest): Promise<void> {
+    await client.post('/api/v1/audit-logs', payload);
   },
 };

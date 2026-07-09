@@ -5,6 +5,8 @@ import java.time.LocalDateTime;
 
 import org.springframework.hateoas.RepresentationModel;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -27,14 +29,28 @@ public class Pedido extends RepresentationModel<Pedido> {
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_cliente")
+    @JsonIgnoreProperties({ "links" })
     private Cliente cliente;
+
+    @Column(name = "id_cliente", insertable = false, updatable = false)
+    private Integer idCliente;
 
     @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_trabajador")
+    @JsonIgnoreProperties({ "links" })
     private Trabajador trabajador;
 
     @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "id_producto")
+    @JsonIgnoreProperties({ "categoria", "proveedor", "links" })
+    private Product producto;
+
+    @Column(name = "id_producto", insertable = false, updatable = false)
+    private Integer idProducto;
+
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "id_estado")
+    @JsonIgnoreProperties({ "links" })
     private EstadoPedido estadoPedido;
 
     @Column(name = "fecha_pedido")
@@ -49,6 +65,7 @@ public class Pedido extends RepresentationModel<Pedido> {
     @Column(name = "tipo_entrega", length = 50)
     private String tipoEntrega;
 
+<<<<<<< HEAD
     @Column(name = "direccion_entrega", length = 255)
     private String direccionEntrega;
 
@@ -72,6 +89,16 @@ public class Pedido extends RepresentationModel<Pedido> {
 
     @Column(name = "fecha_boleta")
     private LocalDateTime fechaBoleta;
+=======
+    @Column(name = "grupo_compra_id", length = 64)
+    private String grupoCompraId;
+
+    @Column(name = "pedido_referencia")
+    private Integer pedidoReferencia;
+
+    @Column(name = "id_usuario", insertable = false, updatable = false)
+    private Integer idUsuario;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
 
     public Pedido() {
     }
@@ -97,6 +124,14 @@ public class Pedido extends RepresentationModel<Pedido> {
 
     public void setCliente(Cliente cliente) {
         this.cliente = cliente;
+    }
+
+    public Integer getIdCliente() {
+        return idCliente;
+    }
+
+    public void setIdCliente(Integer idCliente) {
+        this.idCliente = idCliente;
     }
 
     public Trabajador getTrabajador() {
@@ -147,6 +182,7 @@ public class Pedido extends RepresentationModel<Pedido> {
         this.tipoEntrega = tipoEntrega;
     }
 
+<<<<<<< HEAD
     public String getDireccionEntrega() {
         return direccionEntrega;
     }
@@ -209,5 +245,45 @@ public class Pedido extends RepresentationModel<Pedido> {
 
     public void setFechaBoleta(LocalDateTime fechaBoleta) {
         this.fechaBoleta = fechaBoleta;
+=======
+    public Product getProducto() {
+        return producto;
+    }
+
+    public void setProducto(Product producto) {
+        this.producto = producto;
+    }
+
+    public Integer getIdProducto() {
+        return idProducto;
+    }
+
+    public void setIdProducto(Integer idProducto) {
+        this.idProducto = idProducto;
+    }
+
+    public String getGrupoCompraId() {
+        return grupoCompraId;
+    }
+
+    public void setGrupoCompraId(String grupoCompraId) {
+        this.grupoCompraId = grupoCompraId;
+    }
+
+    public Integer getPedidoReferencia() {
+        return pedidoReferencia;
+    }
+
+    public void setPedidoReferencia(Integer pedidoReferencia) {
+        this.pedidoReferencia = pedidoReferencia;
+    }
+
+    public Integer getIdUsuario() {
+        return idUsuario;
+    }
+
+    public void setIdUsuario(Integer idUsuario) {
+        this.idUsuario = idUsuario;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     }
 }

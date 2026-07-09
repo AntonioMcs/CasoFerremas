@@ -11,7 +11,7 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 @Entity
-@Table(name = "audit_logs")
+@Table(name = "logs_movimientos")
 public class AuditLog {
 
     @Id
@@ -19,44 +19,73 @@ public class AuditLog {
     @Column(name = "id_log")
     private Integer idLog;
 
-    @Column(nullable = false, length = 50)
-    private String entidad;
+    @Column(name = "fecha")
+    private LocalDateTime fecha;
 
-    @Column(nullable = false)
-    private Integer entidadId;
+    @Column(name = "tipo_usuario", nullable = false, length = 30)
+    private String tipoUsuario;
 
-    @Column(nullable = false, length = 20)
+    @Column(name = "id_usuario", nullable = false)
+    private Integer idUsuario;
+
+    @Column(name = "nombre_usuario", length = 120)
+    private String nombreUsuario;
+
+    @Column(length = 40)
+    private String rol;
+
+    @Column(nullable = false, length = 80)
+    private String modulo;
+
+    @Column(nullable = false, length = 80)
     private String accion;
 
-    @Column(name = "usuario_id")
-    private Integer usuarioId;
-
-    @Column(name = "usuario_tipo", length = 30)
-    private String usuarioTipo;
-
-    @Column(name = "usuario_nombre", length = 120)
-    private String usuarioNombre;
-
     @Column(columnDefinition = "TEXT")
-    private String detalle;
+    private String descripcion;
 
-    @Column(name = "fecha_registro", nullable = false)
-    private LocalDateTime fechaRegistro;
+    @Column(length = 80)
+    private String entidad;
+
+    @Column(name = "entidad_id")
+    private Integer entidadId;
+
+    @Column(length = 80)
+    private String ip;
+
+    @Column(name = "user_agent", columnDefinition = "TEXT")
+    private String userAgent;
 
     public AuditLog() {
     }
 
-    public AuditLog(String entidad, Integer entidadId, String accion, String detalle) {
+    public AuditLog(String entidad, Integer entidadId, String accion, String descripcion) {
         this.entidad = entidad;
         this.entidadId = entidadId;
+        this.modulo = entidad;
         this.accion = accion;
-        this.detalle = detalle;
+        this.descripcion = descripcion;
+        this.tipoUsuario = "sistema";
+        this.idUsuario = 0;
+        this.nombreUsuario = "Sistema";
+        this.rol = "sistema";
     }
 
     @PrePersist
     public void prePersist() {
-        if (fechaRegistro == null) {
-            fechaRegistro = LocalDateTime.now();
+        if (fecha == null) {
+            fecha = LocalDateTime.now();
+        }
+        if (tipoUsuario == null || tipoUsuario.isBlank()) {
+            tipoUsuario = "sistema";
+        }
+        if (idUsuario == null) {
+            idUsuario = 0;
+        }
+        if (modulo == null || modulo.isBlank()) {
+            modulo = entidad != null ? entidad : "general";
+        }
+        if (accion == null || accion.isBlank()) {
+            accion = "MOVIMIENTO";
         }
     }
 
@@ -66,6 +95,70 @@ public class AuditLog {
 
     public void setIdLog(Integer idLog) {
         this.idLog = idLog;
+    }
+
+    public LocalDateTime getFecha() {
+        return fecha;
+    }
+
+    public void setFecha(LocalDateTime fecha) {
+        this.fecha = fecha;
+    }
+
+    public String getTipoUsuario() {
+        return tipoUsuario;
+    }
+
+    public void setTipoUsuario(String tipoUsuario) {
+        this.tipoUsuario = tipoUsuario;
+    }
+
+    public Integer getIdUsuario() {
+        return idUsuario;
+    }
+
+    public void setIdUsuario(Integer idUsuario) {
+        this.idUsuario = idUsuario;
+    }
+
+    public String getNombreUsuario() {
+        return nombreUsuario;
+    }
+
+    public void setNombreUsuario(String nombreUsuario) {
+        this.nombreUsuario = nombreUsuario;
+    }
+
+    public String getRol() {
+        return rol;
+    }
+
+    public void setRol(String rol) {
+        this.rol = rol;
+    }
+
+    public String getModulo() {
+        return modulo;
+    }
+
+    public void setModulo(String modulo) {
+        this.modulo = modulo;
+    }
+
+    public String getAccion() {
+        return accion;
+    }
+
+    public void setAccion(String accion) {
+        this.accion = accion;
+    }
+
+    public String getDescripcion() {
+        return descripcion;
+    }
+
+    public void setDescripcion(String descripcion) {
+        this.descripcion = descripcion;
     }
 
     public String getEntidad() {
@@ -84,51 +177,19 @@ public class AuditLog {
         this.entidadId = entidadId;
     }
 
-    public String getAccion() {
-        return accion;
+    public String getIp() {
+        return ip;
     }
 
-    public void setAccion(String accion) {
-        this.accion = accion;
+    public void setIp(String ip) {
+        this.ip = ip;
     }
 
-    public Integer getUsuarioId() {
-        return usuarioId;
+    public String getUserAgent() {
+        return userAgent;
     }
 
-    public void setUsuarioId(Integer usuarioId) {
-        this.usuarioId = usuarioId;
-    }
-
-    public String getUsuarioTipo() {
-        return usuarioTipo;
-    }
-
-    public void setUsuarioTipo(String usuarioTipo) {
-        this.usuarioTipo = usuarioTipo;
-    }
-
-    public String getUsuarioNombre() {
-        return usuarioNombre;
-    }
-
-    public void setUsuarioNombre(String usuarioNombre) {
-        this.usuarioNombre = usuarioNombre;
-    }
-
-    public String getDetalle() {
-        return detalle;
-    }
-
-    public void setDetalle(String detalle) {
-        this.detalle = detalle;
-    }
-
-    public LocalDateTime getFechaRegistro() {
-        return fechaRegistro;
-    }
-
-    public void setFechaRegistro(LocalDateTime fechaRegistro) {
-        this.fechaRegistro = fechaRegistro;
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 }

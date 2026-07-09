@@ -1,13 +1,18 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, apiBaseUrl, getApiErrorMessage } from './lib/api';
 import type {
+<<<<<<< HEAD
   BoletaPedido,
+=======
+  AuditLog,
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
   CategoryFormState,
   CategoryItem,
   Cliente,
   ClienteFormState,
   InventoryFormState,
   InventoryItem,
+  OrderDetailItem,
   OrderItem,
   Product,
   ProductFormState,
@@ -24,8 +29,18 @@ type View = 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin';
 type AdminModule = 'productos' | 'inventario' | 'clientes' | 'trabajadores' | 'pedidos' | 'categorias' | 'imagenes';
 type AdminAction = 'ver' | 'agregar' | 'modificar' | 'eliminar';
 type CartLine = Omit<SaleItem, 'sucursal'> & { nombre: string; precio: number; sucursal?: string | null };
+<<<<<<< HEAD
 type DeliveryMode = 'despacho_domicilio' | 'retiro_tienda';
 const sessionStorageKey = 'ferremas-session';
+=======
+type ClientPurchaseGroup = {
+  key: string;
+  displayOrderId: number;
+  representative: OrderItem;
+  orders: OrderItem[];
+  total: number;
+};
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
 
 const emptyProductForm: ProductFormState = {
   nombreProducto: '',
@@ -78,6 +93,43 @@ const fallbackImage =
 const money = (value: number | string | null | undefined) =>
   Number(value ?? 0).toLocaleString('es-CL', { style: 'currency', currency: 'CLP', maximumFractionDigits: 0 });
 
+const openTransbankPayment = (url: string, token: string, targetName?: string) => {
+  const form = document.createElement('form');
+  form.method = 'POST';
+  form.action = url;
+  form.target = targetName || '_blank';
+  form.style.display = 'none';
+
+  const tokenWsInput = document.createElement('input');
+  tokenWsInput.type = 'hidden';
+  tokenWsInput.name = 'token_ws';
+  tokenWsInput.value = token;
+  form.appendChild(tokenWsInput);
+
+  const tbkTokenInput = document.createElement('input');
+  tbkTokenInput.type = 'hidden';
+  tbkTokenInput.name = 'TBK_TOKEN';
+  tbkTokenInput.value = token;
+  form.appendChild(tbkTokenInput);
+
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+};
+
+const prepareTransbankWindow = () => {
+  const targetName = `transbank_pago_${Date.now()}`;
+  const paymentWindow = window.open('', targetName, 'width=1100,height=800');
+
+  if (paymentWindow) {
+    paymentWindow.document.title = 'Pago Transbank';
+    paymentWindow.document.body.innerHTML = '<p style="font-family:Arial,sans-serif;padding:24px">Preparando pago seguro...</p>';
+    paymentWindow.focus();
+  }
+
+  return { targetName, paymentWindow };
+};
+
 const roleLabels: Record<View, string> = {
   cliente: 'Tienda',
   vendedor: 'Ventas',
@@ -124,7 +176,14 @@ export default function App() {
   const [images, setImages] = useState<ProductImage[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [reportSummary, setReportSummary] = useState<Record<string, unknown>>({});
-  const [auditLogs, setAuditLogs] = useState<unknown[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [showClientAccount, setShowClientAccount] = useState(false);
+  const [orderDetails, setOrderDetails] = useState<OrderDetailItem[]>([]);
+  const [clientOrderDetails, setClientOrderDetails] = useState<Record<number, OrderDetailItem[]>>({});
+  const [expandedOrderProducts, setExpandedOrderProducts] = useState<Record<number, boolean>>({});
+  const [clientAccountLoading, setClientAccountLoading] = useState(false);
+  const [showAllMovements, setShowAllMovements] = useState(false);
+  const [movementUserFilter, setMovementUserFilter] = useState('todos');
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [transbankStatus, setTransbankStatus] = useState<string | null>(null);
@@ -174,7 +233,11 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
+<<<<<<< HEAD
       const [productData, inventoryData, clienteData, trabajadorData, orderData, warehouseData, transferData, imageData, categoryData, reportData, auditData] =
+=======
+      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, detailData, imageData, categoryData, reportData, auditData] =
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
         await Promise.allSettled([
           api.getProducts(),
           api.getInventories(),
@@ -183,6 +246,7 @@ export default function App() {
           api.getOrders(),
           api.getWarehouseOrders(),
           api.getPendingTransfers(),
+          api.getAllOrderDetails(),
           api.getProductImages(),
           api.getCategories(),
           api.getReports(),
@@ -204,12 +268,17 @@ export default function App() {
       if (orderData.status === 'fulfilled') setOrders(orderData.value);
       if (warehouseData.status === 'fulfilled') setWarehouseOrders(warehouseData.value);
       if (transferData.status === 'fulfilled') setPendingTransfers(transferData.value);
+      if (detailData.status === 'fulfilled') setOrderDetails(detailData.value);
       if (imageData.status === 'fulfilled') setImages(imageData.value);
       if (categoryData.status === 'fulfilled') setCategories(categoryData.value);
       if (reportData.status === 'fulfilled') setReportSummary(reportData.value);
       if (auditData.status === 'fulfilled') setAuditLogs(auditData.value);
 
+<<<<<<< HEAD
       const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, warehouseData, transferData, imageData, categoryData, reportData, auditData]
+=======
+      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, detailData, imageData, categoryData, reportData, auditData]
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
         .filter((item) => item.status === 'rejected');
       setStatusMessage(rejected.length ? `Datos cargados parcialmente (${rejected.length} modulo(s) con error).` : 'Catalogo actualizado.');
     } catch (error) {
@@ -313,6 +382,13 @@ export default function App() {
 
   const sellerVisibleProducts = products.filter((product) => productMatches(product, sellerSearchQuery));
   const adminVisibleProducts = products.filter((product) => productMatches(product, adminSearchQuery));
+  const movementUsers = Array.from(
+    new Map(auditLogs.map((log) => [`${log.tipoUsuario}:${log.idUsuario}`, log])).values(),
+  );
+  const visibleAuditLogs = auditLogs.filter((log) => {
+    if (movementUserFilter === 'todos') return true;
+    return `${log.tipoUsuario}:${log.idUsuario}` === movementUserFilter;
+  });
 
   const totalStock = inventories.reduce((sum, item) => sum + (item.stockActual ?? 0), 0);
   const webStock = inventories.filter((item) => isWebStock(item)).reduce((sum, item) => sum + item.stockActual, 0);
@@ -323,6 +399,133 @@ export default function App() {
   const clientTotal = clientCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const sellerTotal = sellerCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const visibleView = session ? activeView : 'cliente';
+  const clientOrders = session?.tipoUsuario === 'cliente'
+    ? orders.filter((order) => orderBelongsToSession(order))
+    : [];
+  const clientOrderGroups = useMemo<ClientPurchaseGroup[]>(() => {
+    const grouped = new Map<string, OrderItem[]>();
+    for (const order of clientOrders) {
+      const key = order.grupoCompraId?.trim()
+        || (order.pedidoReferencia ? `pedido-ref-${order.pedidoReferencia}` : `pedido-${order.idPedido}`);
+      grouped.set(key, [...(grouped.get(key) ?? []), order]);
+    }
+
+    return Array.from(grouped.entries()).map(([key, groupedOrders]) => {
+      const sorted = [...groupedOrders].sort((a, b) => a.idPedido - b.idPedido);
+      const representative = sorted.find((order) => order.pedidoReferencia === order.idPedido) ?? sorted[0];
+      const total = sorted.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+      return {
+        key,
+        displayOrderId: representative.pedidoReferencia ?? representative.idPedido,
+        representative,
+        orders: sorted,
+        total,
+      };
+    }).sort((a, b) => b.displayOrderId - a.displayOrderId);
+  }, [clientOrders]);
+  const clientMovements = session?.tipoUsuario === 'cliente'
+    ? auditLogs.filter((log) => log.tipoUsuario === 'cliente' && log.idUsuario === session.id)
+    : [];
+  const clientPaidOrders = clientOrderGroups.filter((group) => orderStatusName(group.representative) === 'pagado');
+  const clientPendingOrders = clientOrderGroups.filter((group) => orderStatusName(group.representative) === 'pendiente');
+  const clientReadyOrders = clientOrderGroups.filter((group) => ['listo', 'preparacion', 'preparación'].includes(orderStatusName(group.representative)));
+
+  function orderStatusName(order: OrderItem) {
+    return (order.estadoPedido?.nombreEstado ?? '').trim().toLowerCase();
+  }
+
+  function parseNumericId(value: unknown) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function orderClientId(order: OrderItem) {
+    const rawClientId = (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).idCliente
+      ?? (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).clienteId
+      ?? (order as { idCliente?: unknown; clienteId?: unknown; id_cliente?: unknown }).id_cliente
+      ?? (order.cliente as { id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawClientId);
+  }
+
+  function orderLegacyUserId(order: OrderItem) {
+    const rawUserId = (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).idUsuario
+      ?? (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).usuarioId
+      ?? (order as { idUsuario?: unknown; usuarioId?: unknown; id_usuario?: unknown }).id_usuario;
+    return parseNumericId(rawUserId);
+  }
+
+  function orderBelongsToSession(order: OrderItem) {
+    if (!session || session.tipoUsuario !== 'cliente') return false;
+    const sessionId = parseNumericId(session.id);
+    if (!sessionId) return false;
+    return orderClientId(order) === sessionId || orderLegacyUserId(order) === sessionId;
+  }
+
+  function detailOrderId(detail: OrderDetailItem) {
+    const rawOrderId = (detail as { pedidoId?: unknown; idPedido?: unknown }).pedidoId
+      ?? (detail as { pedidoId?: unknown; idPedido?: unknown }).idPedido
+      ?? (detail.pedido as { idPedido?: unknown; id?: unknown } | null | undefined)?.idPedido
+      ?? (detail.pedido as { idPedido?: unknown; id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawOrderId);
+  }
+
+  function detailProductId(detail: OrderDetailItem) {
+    const rawProductId = (detail as { productoId?: unknown; idProducto?: unknown }).productoId
+      ?? (detail as { productoId?: unknown; idProducto?: unknown }).idProducto
+      ?? (detail.producto as { id?: unknown } | null | undefined)?.id;
+    return parseNumericId(rawProductId);
+  }
+
+  function detailProductName(detail: OrderDetailItem) {
+    const directName = (detail as { nombreProducto?: unknown }).nombreProducto;
+    if (typeof detail.producto?.nombreProducto === 'string' && detail.producto.nombreProducto.trim()) {
+      return detail.producto.nombreProducto;
+    }
+    if (typeof directName === 'string' && directName.trim()) {
+      return directName;
+    }
+    const productId = detailProductId(detail);
+    if (productId) {
+      const fromCatalog = products.find((product) => product.id === productId)?.nombreProducto;
+      if (fromCatalog) return fromCatalog;
+    }
+    return 'Producto';
+  }
+
+  function detailSummary(detail: OrderDetailItem) {
+    return `${detailProductName(detail)} x${detail.cantidad}`;
+  }
+
+  function orderProductName(order: OrderItem) {
+    const directName = (order as { nombreProducto?: unknown }).nombreProducto;
+    if (typeof order.producto?.nombreProducto === 'string' && order.producto.nombreProducto.trim()) {
+      return order.producto.nombreProducto;
+    }
+    if (typeof directName === 'string' && directName.trim()) {
+      return directName;
+    }
+    const rawProductId = (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).idProducto
+      ?? (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).productoId
+      ?? (order as { idProducto?: unknown; productoId?: unknown; id_producto?: unknown }).id_producto
+      ?? (order.producto as { id?: unknown } | null | undefined)?.id;
+    const productId = parseNumericId(rawProductId);
+    if (productId) {
+      return products.find((product) => product.id === productId)?.nombreProducto ?? null;
+    }
+    return null;
+  }
+
+  function orderSummaryFallback(order: OrderItem) {
+    const productName = orderProductName(order);
+    if (!productName) return null;
+    return `${productName} x1`;
+  }
+
+  function detailsForOrder(orderId: number) {
+    const cached = clientOrderDetails[orderId];
+    if (cached?.length) return cached;
+    return orderDetails.filter((detail) => detailOrderId(detail) === orderId);
+  }
 
   function normalizeView(rol: string): View {
     const normalizedRole = rol.trim().toLowerCase();
@@ -391,9 +594,58 @@ export default function App() {
       .slice(0, 6);
   }
 
+  async function loadClientAccountDetails() {
+    if (!session || session.tipoUsuario !== 'cliente') {
+      setShowLogin(true);
+      setStatusMessage('Debes iniciar sesion para ver tus movimientos y pedidos.');
+      return;
+    }
+
+    setClientAccountLoading(true);
+    try {
+      const missingOrders = clientOrders.filter((order) => !clientOrderDetails[order.idPedido]);
+      if (missingOrders.length) {
+        const detailEntries = await Promise.all(
+          missingOrders.map(async (order) => [order.idPedido, await api.getOrderDetails(order.idPedido)] as const),
+        );
+        setClientOrderDetails((current) => ({
+          ...current,
+          ...Object.fromEntries(detailEntries),
+        }));
+      }
+      setShowClientAccount(true);
+      setStatusMessage('Movimientos y pedidos de tu cuenta cargados.');
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    } finally {
+      setClientAccountLoading(false);
+    }
+  }
+
   function goTo(pathname: string) {
     window.history.pushState(null, '', pathname);
     setPath(pathname);
+  }
+
+  async function logMovement(modulo: string, accion: string, descripcion: string, entidad?: string, entidadId?: number) {
+    if (!session) return;
+    try {
+      await api.createAuditLog({
+        tipoUsuario: session.tipoUsuario,
+        idUsuario: session.id,
+        nombreUsuario: session.nombre,
+        rol: session.rol,
+        modulo,
+        accion,
+        descripcion,
+        entidad,
+        entidadId,
+      });
+      const logs = await api.getAuditLogs();
+      setAuditLogs(logs);
+    } catch (error) {
+      console.warn('No se pudo registrar el movimiento', error);
+    }
   }
 
   function productImage(productId: number) {
@@ -469,6 +721,7 @@ export default function App() {
           ? { ...line, cantidad: line.cantidad + 1 }
           : line
       )));
+      void logMovement('carrito', 'AGREGAR_UNIDAD', `Agrego otra unidad de ${product.nombreProducto}`, 'PRODUCTO', product.id);
       return;
     }
     setCart([
@@ -482,6 +735,7 @@ export default function App() {
         precio: Number(product.precio),
       },
     ]);
+    void logMovement('carrito', 'AGREGAR_PRODUCTO', `Agrego ${product.nombreProducto} al carrito desde ${stockPlace(inventory)}`, 'PRODUCTO', product.id);
   }
 
   function preferredSellerInventory(product: Product) {
@@ -527,16 +781,32 @@ export default function App() {
       setShowLogin(false);
       setLoginPassword('');
       if (user.tipoUsuario === 'cliente') setSelectedClienteId(String(user.id));
+      await api.createAuditLog({
+        tipoUsuario: user.tipoUsuario,
+        idUsuario: user.id,
+        nombreUsuario: user.nombre,
+        rol: user.rol,
+        modulo: 'auth',
+        accion: 'LOGIN',
+        descripcion: 'Inicio de sesion',
+        entidad: user.tipoUsuario,
+        entidadId: user.id,
+      });
+      setAuditLogs(await api.getAuditLogs());
       setStatusMessage(`Bienvenido, ${user.nombre}.`);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'No se pudo iniciar sesion.');
     }
   }
 
-  function logout() {
+  async function logout() {
+    if (session) {
+      await logMovement('auth', 'LOGOUT', 'Cierre de sesion', session.tipoUsuario, session.id);
+    }
     setSession(null);
     window.localStorage.removeItem(sessionStorageKey);
     setActiveView('cliente');
+    setShowClientAccount(false);
   }
 
   async function submitClientRegistration(event: FormEvent<HTMLFormElement>) {
@@ -588,47 +858,39 @@ export default function App() {
       items: cart.map(({ productoId, inventarioId, sucursal, cantidad }) => ({ productoId, inventarioId, sucursal: sucursal ?? undefined, cantidad })),
     };
 
+    const transbankWindow = metodoPago === 'tarjeta' ? prepareTransbankWindow() : null;
+
     try {
       setStatusMessage(metodoPago === 'tarjeta' ? 'Creando pedido y enviando a Transbank...' : 'Procesando venta y descontando stock...');
       const saleResponse = kind === 'cliente'
         ? await api.createClientSale(payload)
         : await api.createSellerSale(payload);
+      await logMovement(
+        kind === 'cliente' ? 'checkout' : 'ventas',
+        'CREAR_VENTA',
+        `Venta ${kind} registrada con ${cart.length} item(s), metodo ${metodoPago}`,
+        'PEDIDO',
+        saleResponse.pedido?.idPedido,
+      );
 
       if (saleResponse.transbankResponse?.url) {
-        setStatusMessage('Redirigiendo a Transbank para completar el pago...');
+        setStatusMessage('Abriendo Transbank en una ventana nueva. Mantén esta pestaña abierta mientras completas el pago.');
         const tokenValue = saleResponse.transbankResponse.token
           ?? saleResponse.transbankResponse.transactionId
           ?? saleResponse.transbankResponse.authorizationCode
           ?? '';
 
         if (!tokenValue) {
+          transbankWindow?.paymentWindow?.close();
           setStatusMessage('Error: token Transbank no disponible.');
           return;
         }
 
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = saleResponse.transbankResponse.url;
-        form.target = '_self';
-        form.style.display = 'none';
-
-        const tokenWsInput = document.createElement('input');
-        tokenWsInput.type = 'hidden';
-        tokenWsInput.name = 'token_ws';
-        tokenWsInput.value = tokenValue;
-        form.appendChild(tokenWsInput);
-
-        const tbkTokenInput = document.createElement('input');
-        tbkTokenInput.type = 'hidden';
-        tbkTokenInput.name = 'TBK_TOKEN';
-        tbkTokenInput.value = tokenValue;
-        form.appendChild(tbkTokenInput);
-
-        document.body.appendChild(form);
-        form.submit();
+        openTransbankPayment(saleResponse.transbankResponse.url, tokenValue, transbankWindow?.targetName);
         return;
       }
 
+      transbankWindow?.paymentWindow?.close();
       if (kind === 'cliente') {
         setClientCart([]);
       } else {
@@ -638,6 +900,7 @@ export default function App() {
       await loadData();
       setStatusMessage('Venta registrada correctamente. Stock actualizado.');
     } catch (error) {
+      transbankWindow?.paymentWindow?.close();
       setStatusMessage(error instanceof Error ? error.message : 'No se pudo registrar la venta.');
     }
   }
@@ -645,6 +908,7 @@ export default function App() {
   const submitProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createProduct(productForm);
+    await logMovement('productos', 'CREAR', `Producto creado: ${productForm.nombreProducto}`, 'PRODUCTO');
     setProductForm(emptyProductForm);
     await loadData();
   };
@@ -652,6 +916,7 @@ export default function App() {
   const submitInventory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createInventory(inventoryForm);
+    await logMovement('inventario', 'CREAR', `Inventario creado para producto ID ${inventoryForm.productoId}`, 'INVENTARIO');
     setInventoryForm(emptyInventoryForm);
     await loadData();
   };
@@ -660,6 +925,7 @@ export default function App() {
     event.preventDefault();
     try {
       await api.createCliente(clienteForm);
+      await logMovement('clientes', 'CREAR', `Cliente creado: ${clienteForm.nombre}`, 'CLIENTE');
       setClienteForm(emptyClienteForm);
       await loadData();
       setStatusMessage('Usuario creado correctamente.');
@@ -672,6 +938,7 @@ export default function App() {
     event.preventDefault();
     try {
       await api.createTrabajador(trabajadorForm);
+      await logMovement('trabajadores', 'CREAR', `Trabajador creado: ${trabajadorForm.nombre}`, 'TRABAJADOR');
       setTrabajadorForm(emptyTrabajadorForm);
       await loadData();
       setStatusMessage('Trabajador creado correctamente.');
@@ -683,6 +950,7 @@ export default function App() {
   const submitImage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createProductImage(imageForm);
+    await logMovement('imagenes', 'CREAR', `Imagen creada para producto ID ${imageForm.productoId}`, 'PRODUCTO_IMAGEN');
     setImageForm(emptyImageForm);
     await loadData();
   };
@@ -690,6 +958,7 @@ export default function App() {
   const submitCategory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createCategory(categoryForm);
+    await logMovement('categorias', 'CREAR', `Categoria creada: ${categoryForm.nombreCategoria}`, 'CATEGORIA');
     setCategoryForm({ nombreCategoria: '' });
     await loadData();
   };
@@ -698,6 +967,7 @@ export default function App() {
     event.preventDefault();
     if (!editingProductId) return;
     await api.updateProduct(Number(editingProductId), productEditForm);
+    await logMovement('productos', 'ACTUALIZAR', `Producto actualizado: ${productEditForm.nombreProducto}`, 'PRODUCTO', Number(editingProductId));
     await loadData();
     setStatusMessage('Producto actualizado correctamente.');
   };
@@ -706,6 +976,7 @@ export default function App() {
     event.preventDefault();
     if (!editingInventoryId) return;
     await api.updateInventory(Number(editingInventoryId), inventoryEditForm);
+    await logMovement('inventario', 'ACTUALIZAR', `Inventario actualizado ID ${editingInventoryId}`, 'INVENTARIO', Number(editingInventoryId));
     await loadData();
     setStatusMessage('Inventario actualizado correctamente.');
   };
@@ -714,6 +985,7 @@ export default function App() {
     event.preventDefault();
     if (!editingClienteId) return;
     await api.updateCliente(Number(editingClienteId), clienteEditForm);
+    await logMovement('clientes', 'ACTUALIZAR', `Cliente actualizado: ${clienteEditForm.nombre}`, 'CLIENTE', Number(editingClienteId));
     await loadData();
     setStatusMessage('Cliente actualizado correctamente.');
   };
@@ -722,6 +994,7 @@ export default function App() {
     event.preventDefault();
     if (!editingTrabajadorId) return;
     await api.updateTrabajador(Number(editingTrabajadorId), trabajadorEditForm);
+    await logMovement('trabajadores', 'ACTUALIZAR', `Trabajador actualizado: ${trabajadorEditForm.nombre}`, 'TRABAJADOR', Number(editingTrabajadorId));
     await loadData();
     setStatusMessage('Trabajador actualizado correctamente.');
   };
@@ -730,6 +1003,7 @@ export default function App() {
     event.preventDefault();
     if (!editingCategoryId) return;
     await api.updateCategory(Number(editingCategoryId), categoryEditForm);
+    await logMovement('categorias', 'ACTUALIZAR', `Categoria actualizada: ${categoryEditForm.nombreCategoria}`, 'CATEGORIA', Number(editingCategoryId));
     await loadData();
     setStatusMessage('Categoria actualizada correctamente.');
   };
@@ -738,6 +1012,7 @@ export default function App() {
     event.preventDefault();
     if (!editingImageId) return;
     await api.updateProductImage(Number(editingImageId), imageEditForm);
+    await logMovement('imagenes', 'ACTUALIZAR', `Imagen actualizada ID ${editingImageId}`, 'PRODUCTO_IMAGEN', Number(editingImageId));
     await loadData();
     setStatusMessage('Imagen actualizada correctamente.');
   };
@@ -754,6 +1029,7 @@ export default function App() {
         setStatusMessage('Eliminar pedidos requiere endpoint dedicado; no se ejecuto ninguna accion.');
         return;
       }
+      await logMovement(module, 'ELIMINAR', `Registro eliminado en modulo ${module}`, module.toUpperCase(), id);
       await loadData();
       setStatusMessage('Registro eliminado correctamente.');
     } catch (error) {
@@ -776,6 +1052,24 @@ export default function App() {
 
         <div className="header-actions">
           <button className="ghost-button" type="button" onClick={loadData}>{loading ? 'Cargando...' : 'Actualizar'}</button>
+          {session?.tipoUsuario === 'cliente' && (
+            <button
+              className="ghost-button"
+              type="button"
+              disabled={clientAccountLoading}
+              onClick={() => {
+                if (showClientAccount) {
+                  setShowClientAccount(false);
+                  return;
+                }
+                setActiveView('cliente');
+                goTo('/');
+                void loadClientAccountDetails();
+              }}
+            >
+              {showClientAccount ? 'Ocultar mi cuenta' : 'Ver mi cuenta'}
+            </button>
+          )}
           {session ? (
             <button className="account-button" type="button" onClick={logout}>
               <span>{session.nombre}</span>
@@ -841,7 +1135,7 @@ export default function App() {
             {visibleView === 'cliente' && renderStorefront()}
             {visibleView === 'vendedor' && renderSeller()}
             {visibleView === 'bodeguero' && renderWarehouse()}
-            {visibleView === 'contador' && renderAccounting()}
+            {visibleView === 'contador' && renderTransferAccounting()}
             {visibleView === 'admin' && renderAdmin()}
           </>
         )}
@@ -956,10 +1250,13 @@ export default function App() {
               <option value="efectivo">Efectivo</option>
             </select>
           </label>
-          {!session && <button className="primary-button full-button" type="button" onClick={() => setShowLogin(true)}>Iniciar sesion para comprar</button>}
+          {session?.tipoUsuario !== 'cliente' && (
+            <button className="primary-button full-button" type="button" onClick={() => setShowLogin(true)}>Iniciar sesion para comprar</button>
+          )}
         </aside>
 
         <section className="product-grid">
+          {showClientAccount && renderClientAccountPanel()}
           {visibleProducts.map((product) => {
             const { web, branches: branchInventories, items: productInventories } = stockSummary(product.id);
             const availableInventories = productInventories.filter((item) => item.stockActual > 0);
@@ -1041,6 +1338,110 @@ export default function App() {
           setCheckoutModalOpen(true);
         }, 'Carro de compra')}
       </section>
+    );
+  }
+
+  function renderClientAccountPanel() {
+    return (
+      <article className="panel-card client-account-panel">
+        <div className="card-head">
+          <div>
+            <h3>Mi cuenta</h3>
+            <p className="muted-copy">Pedidos, estados de compra y movimientos registrados para {session?.nombre ?? 'tu cuenta'}.</p>
+          </div>
+          <span>{clientOrderGroups.length}</span>
+        </div>
+
+        <div className="metric-grid">
+          <div><strong>{clientPaidOrders.length}</strong><p>Pagados</p></div>
+          <div><strong>{clientPendingOrders.length}</strong><p>Pendientes</p></div>
+          <div><strong>{clientReadyOrders.length}</strong><p>Listos por enviar</p></div>
+          <div><strong>{clientMovements.length}</strong><p>Movimientos</p></div>
+        </div>
+
+        <div className="client-account-section">
+          <div className="card-head"><h3>Mis pedidos</h3><span>{clientOrderGroups.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Pedido</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th><th>Productos</th></tr></thead>
+              <tbody>
+                {clientOrderGroups.length === 0 ? (
+                  <tr><td colSpan={6}>Aun no tienes pedidos registrados.</td></tr>
+                ) : clientOrderGroups.map((group) => {
+                  const detailsByGroup = group.orders.flatMap((order) => detailsForOrder(order.idPedido));
+                  const details = detailsByGroup.filter((detail, index, array) =>
+                    array.findIndex((candidate) => candidate.idDetalle === detail.idDetalle) === index,
+                  );
+                  const fallbackSummaries = group.orders
+                    .map((order) => orderSummaryFallback(order))
+                    .filter((item): item is string => Boolean(item));
+                  const uniqueFallbackSummaries = fallbackSummaries.filter((item, index, array) => array.indexOf(item) === index);
+                  const productSummaries = details.length > 0
+                    ? details.map(detailSummary)
+                    : (uniqueFallbackSummaries.length > 0 ? uniqueFallbackSummaries : ['por confirmar']);
+                  const hasManyProducts = productSummaries.length > 1;
+                  const expanded = Boolean(expandedOrderProducts[group.displayOrderId]);
+                  const collapsedText = productSummaries.slice(0, 2).join(', ');
+                  const needsEllipsis = productSummaries.length > 2;
+                  const summaryText = expanded
+                    ? productSummaries.join(', ')
+                    : `${collapsedText}${needsEllipsis ? ', ...' : ''}`;
+                  return (
+                    <tr key={group.key}>
+                      <td>#{group.displayOrderId}</td>
+                      <td>{group.representative.estadoPedido?.nombreEstado ?? '-'}</td>
+                      <td>{group.representative.metodoPago ?? '-'}</td>
+                      <td>{money(group.total)}</td>
+                      <td>{group.representative.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                      <td>
+                        <div className="order-products-list">
+                          <span className={expanded ? 'order-products-expanded' : 'order-products-collapsed'}>
+                            {summaryText}
+                          </span>
+                          {hasManyProducts && (
+                            <button
+                              className="order-products-toggle"
+                              type="button"
+                              onClick={() => setExpandedOrderProducts((current) => ({
+                                ...current,
+                                [group.displayOrderId]: !current[group.displayOrderId],
+                              }))}
+                            >
+                              {expanded ? 'Ver menos' : 'Mas detalle'}
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="client-account-section">
+          <div className="card-head"><h3>Movimientos de la cuenta</h3><span>{clientMovements.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Modulo</th><th>Accion</th><th>Descripcion</th><th>Entidad</th></tr></thead>
+              <tbody>
+                {clientMovements.length === 0 ? (
+                  <tr><td colSpan={5}>Aun no hay movimientos registrados para esta cuenta.</td></tr>
+                ) : clientMovements.map((log) => (
+                  <tr key={log.idLog}>
+                    <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                    <td>{log.modulo}</td>
+                    <td>{log.accion}</td>
+                    <td>{log.descripcion ?? '-'}</td>
+                    <td>{log.entidad ? `${log.entidad} #${log.entidadId ?? '-'}` : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </article>
     );
   }
 
@@ -1142,6 +1543,7 @@ export default function App() {
   async function handleOrderStatusChange(orderId: number, nextStatus: string) {
     try {
       await api.updateOrderStatus(orderId, nextStatus);
+      await logMovement('pedidos', 'CAMBIAR_ESTADO', `Pedido #${orderId} actualizado a ${nextStatus}`, 'PEDIDO', orderId);
       await loadData();
       setStatusMessage(`Pedido #${orderId} actualizado a ${nextStatus}.`);
     } catch (error) {
@@ -1149,8 +1551,143 @@ export default function App() {
     }
   }
 
+  async function handleTransferDecision(order: OrderItem, accepted: boolean) {
+    const nextStatus = accepted ? 'pagado' : 'pendiente';
+    try {
+      await api.updateOrderStatus(order.idPedido, nextStatus);
+      await logMovement(
+        'contabilidad',
+        accepted ? 'ACEPTAR_TRANSFERENCIA' : 'DENEGAR_TRANSFERENCIA',
+        `Transferencia del pedido #${order.idPedido} ${accepted ? 'aceptada' : 'denegada'} para ${order.cliente?.nombre ?? 'cliente sin nombre'}`,
+        'PEDIDO',
+        order.idPedido,
+      );
+      await loadData();
+      setStatusMessage(
+        accepted
+          ? `Transferencia del pedido #${order.idPedido} aceptada. Pedido marcado como pagado.`
+          : `Transferencia del pedido #${order.idPedido} denegada. Pedido queda como pendiente.`,
+      );
+    } catch (error) {
+      setStatusMessage(getApiErrorMessage(error));
+    }
+  }
+
+  function renderWarehouseModule() {
+    const statusOptions = ['pagado', 'preparacion', 'despachado', 'entregado'];
+    const warehouseOrders = orders
+      .filter((order) => ['pagado', 'preparacion', 'despachado', 'pendiente'].includes(orderStatusName(order)))
+      .filter((order) => !order.grupoCompraId || !order.pedidoReferencia || order.pedidoReferencia === order.idPedido)
+      .sort((a, b) => b.idPedido - a.idPedido);
+    const stockByBranch = inventories.reduce<Record<string, number>>((summary, item) => {
+      const branch = stockPlace(item);
+      summary[branch] = (summary[branch] ?? 0) + item.stockActual;
+      return summary;
+    }, {});
+    const productsWithStock = new Set(inventories.filter((item) => item.stockActual > 0).map((item) => item.productoId)).size;
+
+    const orderProducts = (order: OrderItem) => {
+      const groupedOrders = order.grupoCompraId
+        ? orders.filter((item) => item.grupoCompraId === order.grupoCompraId)
+        : [order];
+      const summaries = groupedOrders
+        .flatMap((item) => detailsForOrder(item.idPedido))
+        .map(detailSummary);
+
+      if (summaries.length > 0) return summaries.join(' / ');
+      return groupedOrders.map((item) => orderSummaryFallback(item)).filter(Boolean).join(' / ') || '-';
+    };
+
+    return (
+      <section className="admin-stack warehouse-stack">
+        <article className="panel-card">
+          <div className="card-head">
+            <div>
+              <h3>Modulo de bodeguero</h3>
+              <p className="muted-copy">Stock disponible por bodega/sucursal y gestion operativa de pedidos.</p>
+            </div>
+            <span>{session?.email ?? 'bodega'}</span>
+          </div>
+          <div className="metric-grid">
+            <div><strong>{totalStock}</strong><p>Stock total</p></div>
+            <div><strong>{productsWithStock}</strong><p>Productos con stock</p></div>
+            <div><strong>{Object.keys(stockByBranch).length}</strong><p>Bodegas/sucursales</p></div>
+            <div><strong>{warehouseOrders.length}</strong><p>Pedidos activos</p></div>
+          </div>
+        </article>
+
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Pedidos en preparacion</h3><span>{warehouseOrders.length}</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Productos</th><th>Entrega</th><th>Pago</th><th>Estado</th><th>Actualizar</th></tr></thead>
+              <tbody>{warehouseOrders.map((order) => (
+                <tr key={order.idPedido}>
+                  <td>{order.idPedido}</td>
+                  <td>{order.cliente?.nombre ?? '-'}</td>
+                  <td>{orderProducts(order)}</td>
+                  <td>{order.tipoEntrega ?? '-'}</td>
+                  <td>{order.metodoPago ?? '-'}</td>
+                  <td><span className={`status-chip status-${orderStatusName(order)}`}>{order.estadoPedido?.nombreEstado ?? '-'}</span></td>
+                  <td>
+                    <select
+                      className="status-select"
+                      value={orderStatusName(order)}
+                      onChange={(event) => handleOrderStatusChange(order.idPedido, event.target.value)}
+                    >
+                      <option value="pendiente">pendiente</option>
+                      {statusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+                {warehouseOrders.length === 0 && (
+                  <tr><td colSpan={7}>No hay pedidos activos para bodega.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article className="panel-card list-card">
+          <div className="card-head"><h3>Stock por bodega y sucursal</h3><span>{lowStock.length} bajo minimo</span></div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Producto</th><th>Sucursal</th><th>Bodega</th><th>Stock</th><th>Minimo</th><th>Proveedor</th><th>Estado</th></tr></thead>
+              <tbody>{inventories.map((item) => (
+                <tr key={item.idInventario}>
+                  <td>{item.nombreProducto ?? item.productoId}</td>
+                  <td>{item.sucursal || (isWebStock(item) ? 'Web' : '-')}</td>
+                  <td>{item.ubicacionBodega || stockPlace(item)}</td>
+                  <td>{item.stockActual}</td>
+                  <td>{item.stockMinimo}</td>
+                  <td>{item.nombreProveedor ?? item.proveedorId ?? '-'}</td>
+                  <td>
+                    <span className={`status-chip ${item.stockActual <= item.stockMinimo ? 'status-pendiente' : 'status-pagado'}`}>
+                      {item.stockActual <= item.stockMinimo ? 'reponer' : 'disponible'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+                {inventories.length === 0 && (
+                  <tr><td colSpan={7}>No hay inventario registrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   function renderWarehouse() {
+<<<<<<< HEAD
     const pendingOrders = warehouseOrders.filter((order) => ['pagado', 'pendiente', 'listo', 'preparando', 'entregando'].includes((order.estadoPedido ?? '').toLowerCase()));
+=======
+    return renderWarehouseModule();
+
+    const pendingOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente' || (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'listo');
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     return (
       <section className="panel-grid">
         <article className="panel-card">
@@ -1229,60 +1766,79 @@ export default function App() {
     );
   }
 
-  function renderAccounting() {
-    const pendingReviewOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente');
+  function renderTransferAccounting() {
+    const transferOrders = orders.filter((order) => (order.metodoPago ?? '').toLowerCase() === 'transferencia');
+    const acceptedTransfers = transferOrders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pagado');
+    const pendingTransferTotal = pendingTransfers.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
+
     return (
-      <section className="panel-grid">
+      <section className="admin-stack accounting-stack">
         <article className="panel-card">
-          <div className="card-head"><h3>Panel de contabilidad</h3><span>Operaciones</span></div>
-          <div className="admin-module-grid">
-            <article className="panel-card admin-module-card active">
-              <strong>Pedidos pendientes</strong>
-              <p>Marca los pedidos que ya están listos para despacho.</p>
-            </article>
-            <article className="panel-card admin-module-card active">
-              <strong>Reportes</strong>
-              <p>Revisa el resumen de ventas, pagos y auditoría.</p>
-            </article>
+          <div className="card-head">
+            <div>
+              <h3>Contabilidad - Transferencias</h3>
+              <p className="muted-copy">Revisa los datos del cliente y confirma o deniega los pagos por transferencia.</p>
+            </div>
+            <span>{pendingTransfers.length}</span>
+          </div>
+          <div className="metric-grid">
+            <div><strong>{pendingTransfers.length}</strong><p>Pendientes</p></div>
+            <div><strong>{acceptedTransfers.length}</strong><p>Aceptadas</p></div>
+            <div><strong>{transferOrders.length}</strong><p>Transferencias</p></div>
+            <div><strong>{money(pendingTransferTotal)}</strong><p>Monto pendiente</p></div>
           </div>
         </article>
-        <article className="panel-card metric-card">
-          <p className="sidebar-label">Ventas registradas</p>
-          <strong>{money(totalSales)}</strong>
-          <p className="muted-copy">{orders.length} pedidos totales - {pendingTransfers.length} transferencias pendientes</p>
-        </article>
+
         <article className="panel-card list-card">
-          <div className="card-head"><h3>Productos y pedidos pendientes</h3><span>{pendingReviewOrders.length}</span></div>
+          <div className="card-head"><h3>Transferencias por confirmar</h3><span>{pendingTransfers.length}</span></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Accion</th></tr></thead>
-              <tbody>{pendingReviewOrders.map((order) => (
-                <tr key={order.idPedido}>
-                  <td>{order.idPedido}</td>
-                  <td>{order.cliente?.nombre ?? '-'}</td>
-                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
-                  <td>{order.metodoPago ?? '-'}</td>
-                  <td><button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'listo')}>Marcar listo</button></td>
-                </tr>
-              ))}</tbody>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Rut</th><th>Email</th><th>Total</th><th>Fecha</th><th>Estado</th><th>Accion</th></tr></thead>
+              <tbody>
+                {pendingTransfers.length === 0 ? (
+                  <tr><td colSpan={8}>No hay transferencias pendientes.</td></tr>
+                ) : pendingTransfers.map((order) => (
+                  <tr key={order.idPedido}>
+                    <td>#{order.idPedido}</td>
+                    <td>{order.cliente?.nombre ?? '-'}</td>
+                    <td>{order.cliente?.rut ?? '-'}</td>
+                    <td>{order.cliente?.email ?? '-'}</td>
+                    <td>{money(order.total)}</td>
+                    <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                    <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                    <td>
+                      <div className="transfer-actions">
+                        <button className="edit-button" type="button" onClick={() => void handleTransferDecision(order, true)}>Aceptar</button>
+                        <button className="danger-button" type="button" onClick={() => void handleTransferDecision(order, false)}>Denegar</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </article>
+
         <article className="panel-card list-card">
-          <div className="card-head"><h3>Compras y pendientes</h3><span>{orders.length}</span></div>
+          <div className="card-head"><h3>Registro de transferencias</h3><span>{transferOrders.length}</span></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Total</th><th>Fecha</th></tr></thead>
-              <tbody>{orders.map((order) => (
-                <tr key={order.idPedido}>
-                  <td>{order.idPedido}</td>
-                  <td>{order.cliente?.nombre ?? '-'}</td>
-                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
-                  <td>{order.metodoPago ?? '-'}</td>
-                  <td>{money(order.total)}</td>
-                  <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
-                </tr>
-              ))}</tbody>
+              <thead><tr><th>ID</th><th>Cliente</th><th>Email</th><th>Telefono</th><th>Estado pedido</th><th>Total</th><th>Fecha</th></tr></thead>
+              <tbody>
+                {transferOrders.length === 0 ? (
+                  <tr><td colSpan={7}>Aun no hay compras por transferencia.</td></tr>
+                ) : transferOrders.map((order) => (
+                  <tr key={order.idPedido}>
+                    <td>#{order.idPedido}</td>
+                    <td>{order.cliente?.nombre ?? '-'}</td>
+                    <td>{order.cliente?.email ?? '-'}</td>
+                    <td>{order.cliente?.telefono ?? '-'}</td>
+                    <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
+                    <td>{money(order.total)}</td>
+                    <td>{order.fechaPedido?.slice(0, 10) ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </article>
@@ -1301,6 +1857,7 @@ export default function App() {
             <div><strong>{webStock}</strong><p>Stock web</p></div>
             <div><strong>{branchStock}</strong><p>Stock sucursales</p></div>
           </div>
+<<<<<<< HEAD
           <div className="admin-insight-grid">
             <div>
               <span>Inventarios bajo mínimo</span>
@@ -1329,8 +1886,39 @@ export default function App() {
                 </span>
               );
             })}
+=======
+          <div className="audit-toolbar">
+            <button className="primary-button" type="button" onClick={() => setShowAllMovements((current) => !current)}>
+              {showAllMovements ? 'Ocultar movimientos' : 'Ver todos los movimientos'}
+            </button>
+            {showAllMovements && (
+              <select value={movementUserFilter} onChange={(event) => setMovementUserFilter(event.target.value)}>
+                <option value="todos">Todos los usuarios</option>
+                {movementUsers.map((log) => (
+                  <option key={`${log.tipoUsuario}:${log.idUsuario}`} value={`${log.tipoUsuario}:${log.idUsuario}`}>
+                    {log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`} ({log.rol ?? log.tipoUsuario})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Fecha</th><th>Usuario</th><th>Modulo</th><th>Accion</th><th>Descripcion</th></tr></thead>
+              <tbody>{auditLogs.slice(0, 8).map((log) => (
+                <tr key={log.idLog}>
+                  <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                  <td>{log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`}</td>
+                  <td>{log.modulo}</td>
+                  <td>{log.accion}</td>
+                  <td>{log.descripcion ?? '-'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
           </div>
         </article>
+        {showAllMovements && renderAllMovementsPanel()}
         <div className="admin-module-grid">
           {adminModules.map((module) => (
             <article className={`panel-card admin-module-card ${expandedAdminModule === module.key ? 'active' : ''}`} key={module.key}>
@@ -1381,6 +1969,53 @@ export default function App() {
       imagenes: images.length,
     };
     return counts[module];
+  }
+
+  function renderAllMovementsPanel() {
+    return (
+      <article className="panel-card audit-panel">
+        <div className="card-head">
+          <h3>Movimientos completos</h3>
+          <span>{visibleAuditLogs.length}</span>
+        </div>
+        <p className="muted-copy">
+          Incluye compras, inicios y cierres de sesion, cambios de carrito y acciones administrativas registradas por usuario.
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th>Modulo</th>
+                <th>Accion</th>
+                <th>Entidad</th>
+                <th>Descripcion</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAuditLogs.map((log) => (
+                <tr key={log.idLog}>
+                  <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                  <td>{log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`}</td>
+                  <td>{log.rol ?? log.tipoUsuario}</td>
+                  <td>{log.modulo}</td>
+                  <td>{log.accion}</td>
+                  <td>{log.entidad ? `${log.entidad}${log.entidadId ? ` #${log.entidadId}` : ''}` : '-'}</td>
+                  <td>{log.descripcion ?? '-'}</td>
+                  <td>{log.ip ?? '-'}</td>
+                </tr>
+              ))}
+              {visibleAuditLogs.length === 0 && (
+                <tr><td colSpan={8}>No hay movimientos para el filtro seleccionado.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    );
   }
 
   function renderAdminActionPanel(module: AdminModule) {
@@ -1910,6 +2545,7 @@ export default function App() {
 
       if (safeQuantity === 0) {
         setCart(cart.filter((item) => !(item.productoId === line.productoId && item.inventarioId === line.inventarioId)));
+        void logMovement('carrito', 'QUITAR_PRODUCTO', `Quito ${line.nombre} del carrito`, 'PRODUCTO', line.productoId);
         return;
       }
 
@@ -1922,6 +2558,9 @@ export default function App() {
           ? { ...item, cantidad: safeQuantity }
           : item
       )));
+      if (safeQuantity !== line.cantidad) {
+        void logMovement('carrito', 'CAMBIAR_CANTIDAD', `Cambio ${line.nombre} de ${line.cantidad} a ${safeQuantity} unidad(es)`, 'PRODUCTO', line.productoId);
+      }
     };
 
     return (
@@ -1954,3 +2593,4 @@ export default function App() {
     );
   }
 }
+
