@@ -49,6 +49,30 @@ public class Pedido extends RepresentationModel<Pedido> {
     @Column(name = "tipo_entrega", length = 50)
     private String tipoEntrega;
 
+    @Column(name = "direccion_entrega", length = 255)
+    private String direccionEntrega;
+
+    @Column(name = "comuna_entrega", length = 100)
+    private String comunaEntrega;
+
+    @Column(name = "sucursal_retiro", length = 100)
+    private String sucursalRetiro;
+
+    @Column(name = "numero_boleta", unique = true, length = 50)
+    private String numeroBoleta;
+
+    @Column(name = "neto", precision = 10, scale = 2)
+    private BigDecimal neto;
+
+    @Column(name = "iva", precision = 10, scale = 2)
+    private BigDecimal iva;
+
+    @Column(name = "boleta_emitida")
+    private Boolean boletaEmitida = false;
+
+    @Column(name = "fecha_boleta")
+    private LocalDateTime fechaBoleta;
+
     public Pedido() {
     }
 
@@ -121,5 +145,69 @@ public class Pedido extends RepresentationModel<Pedido> {
 
     public void setTipoEntrega(String tipoEntrega) {
         this.tipoEntrega = tipoEntrega;
+    }
+
+    public String getDireccionEntrega() {
+        return direccionEntrega;
+    }
+
+    public void setDireccionEntrega(String direccionEntrega) {
+        this.direccionEntrega = direccionEntrega;
+    }
+
+    public String getComunaEntrega() {
+        return comunaEntrega;
+    }
+
+    public void setComunaEntrega(String comunaEntrega) {
+        this.comunaEntrega = comunaEntrega;
+    }
+
+    public String getSucursalRetiro() {
+        return sucursalRetiro;
+    }
+
+    public void setSucursalRetiro(String sucursalRetiro) {
+        this.sucursalRetiro = sucursalRetiro;
+    }
+
+    public String getNumeroBoleta() {
+        return numeroBoleta;
+    }
+
+    public void setNumeroBoleta(String numeroBoleta) {
+        this.numeroBoleta = numeroBoleta;
+    }
+
+    public BigDecimal getNeto() {
+        return neto;
+    }
+
+    public void setNeto(BigDecimal neto) {
+        this.neto = neto;
+    }
+
+    public BigDecimal getIva() {
+        return iva;
+    }
+
+    public void setIva(BigDecimal iva) {
+        this.iva = iva;
+    }
+
+    public Boolean getBoletaEmitida() {
+        return boletaEmitida;
+    }
+
+    public void setBoletaEmitida(Boolean boletaEmitida) {
+        this.boletaEmitida = boletaEmitida;
+    }
+
+    public LocalDateTime getFechaBoleta() {
+        return fechaBoleta;
+    }
+
+    public void setFechaBoleta(LocalDateTime fechaBoleta) {
+        this.fechaBoleta = fechaBoleta;
     }
 }

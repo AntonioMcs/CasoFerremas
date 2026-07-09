@@ -81,5 +81,8 @@ public class PedidoService {
         pedido.setTotal(dto.getTotal());
         pedido.setMetodoPago(dto.getMetodoPago());
         pedido.setTipoEntrega(dto.getTipoEntrega());
+        pedido.setDireccionEntrega(dto.getDireccionEntrega());
+        pedido.setComunaEntrega(dto.getComunaEntrega());
+        pedido.setSucursalRetiro(dto.getSucursalRetiro());
     }
 }

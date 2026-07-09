@@ -13,12 +13,17 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.profecarlos.tallerapirest.restapi.dto.BoletaItemDTO;
+import com.profecarlos.tallerapirest.restapi.dto.BoletaPedidoDTO;
 import com.profecarlos.tallerapirest.restapi.dto.PedidoDTO;
 import com.profecarlos.tallerapirest.restapi.model.Cliente;
+import com.profecarlos.tallerapirest.restapi.model.DetallePedido;
 import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
 import com.profecarlos.tallerapirest.restapi.model.Pedido;
+import com.profecarlos.tallerapirest.restapi.model.Product;
 import com.profecarlos.tallerapirest.restapi.model.Trabajador;
 import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
+import com.profecarlos.tallerapirest.restapi.repository.DetallePedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
@@ -35,15 +40,18 @@ public class PedidoController {
     private final ClienteRepository clienteRepository;
     private final TrabajadorRepository trabajadorRepository;
     private final EstadoPedidoRepository estadoPedidoRepository;
+    private final DetallePedidoRepository detallePedidoRepository;
     private final AuditLogService auditLogService;
 
     public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
             TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
+            DetallePedidoRepository detallePedidoRepository,
             AuditLogService auditLogService) {
         this.pedidoRepository = pedidoRepository;
         this.clienteRepository = clienteRepository;
         this.trabajadorRepository = trabajadorRepository;
         this.estadoPedidoRepository = estadoPedidoRepository;
+        this.detallePedidoRepository = detallePedidoRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -72,6 +80,24 @@ public class PedidoController {
     @GetMapping("/estado/{nombreEstado}")
     public ResponseEntity<List<Pedido>> listarPorEstado(@PathVariable String nombreEstado) {
         return ResponseEntity.ok(pedidoRepository.findByEstadoPedidoNombreEstadoIgnoreCase(nombreEstado));
+    }
+
+    @GetMapping("/bodega")
+    public ResponseEntity<List<BoletaPedidoDTO>> listarPedidosBodega() {
+        List<String> estados = List.of("pagado", "pendiente", "listo", "preparando", "entregando");
+        List<BoletaPedidoDTO> pedidos = pedidoRepository.findAll().stream()
+                .filter(pedido -> pedido.getEstadoPedido() != null)
+                .filter(pedido -> estados.contains(pedido.getEstadoPedido().getNombreEstado().toLowerCase()))
+                .map(this::toBoletaDTO)
+                .toList();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    @GetMapping("/{id}/boleta")
+    public ResponseEntity<?> obtenerBoleta(@PathVariable Integer id) {
+        return pedidoRepository.findById(id)
+                .<ResponseEntity<?>>map(pedido -> ResponseEntity.ok(toBoletaDTO(pedido)))
+                .orElse(ResponseEntity.notFound().build());
     }
 
     @PutMapping("/{id}/estado")
@@ -163,6 +189,9 @@ public class PedidoController {
         pedido.setTotal(dto.getTotal());
         pedido.setMetodoPago(dto.getMetodoPago());
         pedido.setTipoEntrega(dto.getTipoEntrega());
+        pedido.setDireccionEntrega(dto.getDireccionEntrega());
+        pedido.setComunaEntrega(dto.getComunaEntrega());
+        pedido.setSucursalRetiro(dto.getSucursalRetiro());
     }
 
     private ResponseEntity<?> validarDTO(PedidoDTO dto) {
@@ -173,5 +202,51 @@ public class PedidoController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("tipo_entrega debe ser retiro_tienda o despacho_domicilio");
         }
         return null;
+    }
+
+    private BoletaPedidoDTO toBoletaDTO(Pedido pedido) {
+        BoletaPedidoDTO dto = new BoletaPedidoDTO();
+        dto.setPedidoId(pedido.getIdPedido());
+        dto.setNumeroBoleta(pedido.getNumeroBoleta());
+        dto.setFechaPedido(pedido.getFechaPedido());
+        dto.setFechaBoleta(pedido.getFechaBoleta());
+        dto.setMetodoPago(pedido.getMetodoPago());
+        dto.setEstadoPedido(pedido.getEstadoPedido() != null ? pedido.getEstadoPedido().getNombreEstado() : null);
+        dto.setTipoEntrega(pedido.getTipoEntrega());
+        dto.setDireccionEntrega(pedido.getDireccionEntrega());
+        dto.setComunaEntrega(pedido.getComunaEntrega());
+        dto.setSucursalRetiro(pedido.getSucursalRetiro());
+        dto.setNeto(pedido.getNeto());
+        dto.setIva(pedido.getIva());
+        dto.setTotal(pedido.getTotal());
+
+        Cliente cliente = pedido.getCliente();
+        if (cliente != null) {
+            dto.setClienteNombre(cliente.getNombre());
+            dto.setClienteRut(cliente.getRut());
+            dto.setClienteEmail(cliente.getEmail());
+        }
+
+        List<BoletaItemDTO> items = detallePedidoRepository.findByPedidoIdPedido(pedido.getIdPedido()).stream()
+                .map(this::toBoletaItemDTO)
+                .toList();
+        dto.setItems(items);
+        return dto;
+    }
+
+    private BoletaItemDTO toBoletaItemDTO(DetallePedido detalle) {
+        BoletaItemDTO dto = new BoletaItemDTO();
+        Product producto = detalle.getProducto();
+        if (producto != null) {
+            dto.setProductoId(producto.getId());
+            dto.setNombreProducto(producto.getNombreProducto());
+            dto.setSku(producto.getCodigoSku());
+        }
+        dto.setCantidad(detalle.getCantidad());
+        dto.setPrecioUnitario(detalle.getPrecioUnitario());
+        dto.setSubtotal(detalle.getSubtotal());
+        dto.setInventarioId(detalle.getInventarioId());
+        dto.setOrigenStock(detalle.getOrigenStock());
+        return dto;
     }
 }

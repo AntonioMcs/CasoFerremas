@@ -40,6 +40,12 @@ public class DetallePedido extends RepresentationModel<DetallePedido> {
     @Column(precision = 10, scale = 2)
     private BigDecimal subtotal;
 
+    @Column(name = "inventario_id")
+    private Integer inventarioId;
+
+    @Column(name = "origen_stock", length = 100)
+    private String origenStock;
+
     public DetallePedido() {
     }
 
@@ -89,5 +95,21 @@ public class DetallePedido extends RepresentationModel<DetallePedido> {
 
     public void setSubtotal(BigDecimal subtotal) {
         this.subtotal = subtotal;
+    }
+
+    public Integer getInventarioId() {
+        return inventarioId;
+    }
+
+    public void setInventarioId(Integer inventarioId) {
+        this.inventarioId = inventarioId;
+    }
+
+    public String getOrigenStock() {
+        return origenStock;
+    }
+
+    public void setOrigenStock(String origenStock) {
+        this.origenStock = origenStock;
     }
 }

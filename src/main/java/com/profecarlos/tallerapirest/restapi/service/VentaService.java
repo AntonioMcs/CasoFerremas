@@ -1,7 +1,10 @@
 package com.profecarlos.tallerapirest.restapi.service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.stereotype.Service;
@@ -58,6 +61,7 @@ public class VentaService {
 
     @Transactional
     public VentaResponseDTO crearVenta(VentaRequestDTO dto) {
+        validarEntrega(dto);
         Cliente cliente = clienteRepository.findById(dto.getClienteId())
                 .orElseThrow(() -> new IllegalArgumentException("Cliente no encontrado"));
 
@@ -68,7 +72,7 @@ public class VentaService {
         }
 
         String metodoPago = dto.getMetodoPago() == null ? "" : dto.getMetodoPago().trim().toLowerCase(Locale.ROOT);
-        String estadoNombre = "efectivo".equals(metodoPago) ? "pagado" : "pendiente";
+        String estadoNombre = "tarjeta".equals(metodoPago) || "transferencia".equals(metodoPago) ? "pendiente" : "pagado";
         EstadoPedido estado = estadoPedidoRepository.findByNombreEstado(estadoNombre)
                 .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre)));
 
@@ -78,6 +82,9 @@ public class VentaService {
         pedido.setEstadoPedido(estado);
         pedido.setMetodoPago(metodoPago);
         pedido.setTipoEntrega(dto.getTipoEntrega());
+        pedido.setDireccionEntrega(normalize(dto.getDireccionEntrega()));
+        pedido.setComunaEntrega(normalize(dto.getComunaEntrega()));
+        pedido.setSucursalRetiro(normalize(dto.getSucursalRetiro()));
         pedido.setTotal(BigDecimal.ZERO);
         Pedido guardado = pedidoRepository.save(pedido);
 
@@ -90,8 +97,9 @@ public class VentaService {
                 throw new IllegalArgumentException("Stock insuficiente para " + producto.getNombreProducto());
             }
 
-            inventario.setStockActual(inventario.getStockActual() - item.getCantidad());
-            inventarioRepository.save(inventario);
+            if (!"tarjeta".equals(metodoPago)) {
+                descontarInventario(inventario, item.getCantidad(), producto.getNombreProducto());
+            }
 
             BigDecimal subtotal = producto.getPrecio().multiply(BigDecimal.valueOf(item.getCantidad()));
             DetallePedido detalle = new DetallePedido();
@@ -100,11 +108,17 @@ public class VentaService {
             detalle.setCantidad(item.getCantidad());
             detalle.setPrecioUnitario(producto.getPrecio());
             detalle.setSubtotal(subtotal);
+            detalle.setInventarioId(inventario.getIdInventario());
+            detalle.setOrigenStock(nombreOrigen(inventario));
             detallePedidoRepository.save(detalle);
             total = total.add(subtotal);
         }
 
         guardado.setTotal(total);
+        actualizarTotalesBoleta(guardado);
+        if (!"tarjeta".equals(metodoPago) && !"transferencia".equals(metodoPago)) {
+            emitirBoleta(guardado);
+        }
         guardado = pedidoRepository.save(guardado);
 
         VentaResponseDTO responseDTO = new VentaResponseDTO();
@@ -125,10 +139,22 @@ public class VentaService {
                 String sesionId = "SESION_" + guardado.getIdPedido();
                 TransbankTransactionResponse transbankResponse = transbankService.crearTransaccion(total, ordenCompra, sesionId, retorno);
                 String status = transbankResponse.getStatus() != null ? transbankResponse.getStatus().trim().toUpperCase(Locale.ROOT) : "PENDING";
-                pago.setEstadoPago("PENDING".equals(status) ? "PENDIENTE" : "PROCESANDO");
                 pago.setMetodoPago("TRANSBANK");
                 pago.setTokenTransbank(transbankResponse.getToken());
                 pago.setAuthorizationCode(transbankResponse.getAuthorizationCode());
+
+                if ("AUTHORIZED".equals(status)) {
+                    pago.setEstadoPago("PAGADO");
+                    pago.setFechaPago(LocalDateTime.now());
+                    guardado = confirmarPedidoPagado(guardado);
+                    pagoRepository.save(pago);
+                    responseDTO.setPedido(guardado);
+                    transbankResponse.setUrl(null);
+                    responseDTO.setTransbankResponse(transbankResponse);
+                    return responseDTO;
+                }
+
+                pago.setEstadoPago("PENDING".equals(status) ? "PENDIENTE" : "PROCESANDO");
                 String url = transbankResponse.getUrl();
                 if (url == null || url.isBlank()) {
                     url = retorno + "&token=" + transbankResponse.getToken();
@@ -161,6 +187,61 @@ public class VentaService {
         }
     }
 
+    @Transactional
+    public VentaResponseDTO confirmarPagoTransbank(Integer pagoId, String token) throws Exception {
+        Pago pago = pagoRepository.findById(pagoId)
+                .orElseThrow(() -> new IllegalArgumentException("Pago no encontrado"));
+
+        TransbankTransactionResponse estado = transbankService.obtenerEstadoTransaccion(token);
+        String status = estado.getStatus() != null ? estado.getStatus().trim().toUpperCase(Locale.ROOT) : "";
+
+        if ("AUTHORIZED".equals(status)) {
+            pago.setEstadoPago("PAGADO");
+            pago.setMetodoPago("TRANSBANK");
+            pago.setTokenTransbank(token);
+            pago.setAuthorizationCode(estado.getAuthorizationCode());
+            pago.setFechaPago(LocalDateTime.now());
+            Pedido pedido = confirmarPedidoPagado(pago.getPedido());
+            pagoRepository.save(pago);
+
+            VentaResponseDTO response = new VentaResponseDTO();
+            response.setPedido(pedido);
+            response.setTransbankResponse(estado);
+            return response;
+        }
+
+        if ("REVERSED".equals(status) || "FAILED".equals(status) || "NULLIFIED".equals(status)) {
+            pago.setEstadoPago("RECHAZADO");
+            cambiarEstadoPedido(pago.getPedido(), "rechazado");
+            pagoRepository.save(pago);
+        }
+
+        VentaResponseDTO response = new VentaResponseDTO();
+        response.setPedido(pago.getPedido());
+        response.setTransbankResponse(estado);
+        return response;
+    }
+
+    @Transactional
+    public Pedido confirmarPedidoPagado(Pedido pedido) {
+        if (Boolean.TRUE.equals(pedido.getBoletaEmitida())) {
+            return pedido;
+        }
+
+        List<DetallePedido> detalles = detallePedidoRepository.findByPedidoIdPedido(pedido.getIdPedido());
+        for (DetallePedido detalle : detalles) {
+            Inventario inventario = resolverInventarioParaDetalle(detalle);
+            descontarInventario(inventario, detalle.getCantidad(), detalle.getProducto().getNombreProducto());
+            detalle.setInventarioId(inventario.getIdInventario());
+            detalle.setOrigenStock(nombreOrigen(inventario));
+            detallePedidoRepository.save(detalle);
+        }
+
+        emitirBoleta(pedido);
+        cambiarEstadoPedido(pedido, "pagado");
+        return pedidoRepository.save(pedido);
+    }
+
     private Inventario resolverInventario(VentaItemDTO item) {
         if (item.getInventarioId() != null) {
             return inventarioRepository.findById(item.getInventarioId())
@@ -171,7 +252,86 @@ public class VentaService {
                     .orElseThrow(() -> new IllegalArgumentException("Inventario no encontrado para sucursal: " + item.getSucursal()));
         }
         return inventarioRepository.findByProductoId(item.getProductoId()).stream()
+                .sorted(Comparator.comparing((Inventario inventario) -> !isWebStock(inventario)))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Inventario no encontrado para producto: " + item.getProductoId()));
+    }
+
+    private Inventario resolverInventarioParaDetalle(DetallePedido detalle) {
+        if (detalle.getInventarioId() != null) {
+            return inventarioRepository.findById(detalle.getInventarioId())
+                    .orElseThrow(() -> new IllegalArgumentException("Inventario no encontrado: " + detalle.getInventarioId()));
+        }
+        return inventarioRepository.findByProductoId(detalle.getProducto().getId()).stream()
+                .sorted(Comparator.comparing((Inventario inventario) -> !isWebStock(inventario)))
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Inventario no encontrado para producto: " + detalle.getProducto().getNombreProducto()));
+    }
+
+    private void descontarInventario(Inventario inventario, Integer cantidad, String nombreProducto) {
+        if (inventario.getStockActual() < cantidad) {
+            throw new IllegalArgumentException("Stock insuficiente para " + nombreProducto + " en " + nombreOrigen(inventario));
+        }
+        inventario.setStockActual(inventario.getStockActual() - cantidad);
+        inventarioRepository.save(inventario);
+    }
+
+    private void validarEntrega(VentaRequestDTO dto) {
+        String tipoEntrega = normalize(dto.getTipoEntrega());
+        if (!"retiro_tienda".equals(tipoEntrega) && !"despacho_domicilio".equals(tipoEntrega)) {
+            throw new IllegalArgumentException("tipoEntrega debe ser retiro_tienda o despacho_domicilio");
+        }
+        if ("despacho_domicilio".equals(tipoEntrega) && (normalize(dto.getDireccionEntrega()) == null || normalize(dto.getComunaEntrega()) == null)) {
+            throw new IllegalArgumentException("Debe indicar direccion y comuna para despacho a domicilio");
+        }
+        if ("retiro_tienda".equals(tipoEntrega) && normalize(dto.getSucursalRetiro()) == null) {
+            throw new IllegalArgumentException("Debe seleccionar sucursal para retiro");
+        }
+    }
+
+    private void actualizarTotalesBoleta(Pedido pedido) {
+        BigDecimal total = pedido.getTotal() != null ? pedido.getTotal() : BigDecimal.ZERO;
+        BigDecimal neto = total.divide(BigDecimal.valueOf(1.19), 2, RoundingMode.HALF_UP);
+        pedido.setNeto(neto);
+        pedido.setIva(total.subtract(neto));
+    }
+
+    private void emitirBoleta(Pedido pedido) {
+        actualizarTotalesBoleta(pedido);
+        pedido.setNumeroBoleta("BOL-" + pedido.getIdPedido() + "-" + System.currentTimeMillis());
+        pedido.setFechaBoleta(LocalDateTime.now());
+        pedido.setBoletaEmitida(true);
+    }
+
+    private void cambiarEstadoPedido(Pedido pedido, String nombreEstado) {
+        EstadoPedido estado = estadoPedidoRepository.findByNombreEstadoIgnoreCase(nombreEstado)
+                .orElseGet(() -> estadoPedidoRepository.save(new EstadoPedido(null, nombreEstado)));
+        pedido.setEstadoPedido(estado);
+        pedidoRepository.save(pedido);
+    }
+
+    private String nombreOrigen(Inventario inventario) {
+        String sucursal = normalize(inventario.getSucursal());
+        if (sucursal != null) {
+            return isWebStock(inventario) ? "Web" : sucursal;
+        }
+        String ubicacion = normalize(inventario.getUbicacionBodega());
+        return ubicacion != null ? ubicacion : "Web";
+    }
+
+    private boolean isWebStock(Inventario inventario) {
+        String label = (inventario.getSucursal() != null ? inventario.getSucursal() : inventario.getUbicacionBodega());
+        if (label == null) {
+            return true;
+        }
+        String normalized = label.toLowerCase(Locale.ROOT);
+        return normalized.contains("web") || normalized.contains("online");
+    }
+
+    private String normalize(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        return value.trim();
     }
 }

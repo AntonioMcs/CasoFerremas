@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, apiBaseUrl, getApiErrorMessage } from './lib/api';
 import type {
+  BoletaPedido,
   CategoryFormState,
   CategoryItem,
   Cliente,
@@ -23,6 +24,8 @@ type View = 'cliente' | 'vendedor' | 'bodeguero' | 'contador' | 'admin';
 type AdminModule = 'productos' | 'inventario' | 'clientes' | 'trabajadores' | 'pedidos' | 'categorias' | 'imagenes';
 type AdminAction = 'ver' | 'agregar' | 'modificar' | 'eliminar';
 type CartLine = Omit<SaleItem, 'sucursal'> & { nombre: string; precio: number; sucursal?: string | null };
+type DeliveryMode = 'despacho_domicilio' | 'retiro_tienda';
+const sessionStorageKey = 'ferremas-session';
 
 const emptyProductForm: ProductFormState = {
   nombreProducto: '',
@@ -94,7 +97,14 @@ const adminModules: Array<{ key: AdminModule; label: string; description: string
 ];
 
 export default function App() {
-  const [session, setSession] = useState<SessionUser | null>(null);
+  const [session, setSession] = useState<SessionUser | null>(() => {
+    try {
+      const storedSession = window.localStorage.getItem(sessionStorageKey);
+      return storedSession ? JSON.parse(storedSession) as SessionUser : null;
+    } catch {
+      return null;
+    }
+  });
   const [activeView, setActiveView] = useState<View>('cliente');
   const [path, setPath] = useState(() => window.location.pathname);
   const [showLogin, setShowLogin] = useState(false);
@@ -109,6 +119,7 @@ export default function App() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [trabajadores, setTrabajadores] = useState<Trabajador[]>([]);
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [warehouseOrders, setWarehouseOrders] = useState<BoletaPedido[]>([]);
   const [pendingTransfers, setPendingTransfers] = useState<OrderItem[]>([]);
   const [images, setImages] = useState<ProductImage[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
@@ -133,6 +144,10 @@ export default function App() {
   const [selectedVendedorId, setSelectedVendedorId] = useState('');
   const [clientPaymentMethod, setClientPaymentMethod] = useState('tarjeta');
   const [sellerPaymentMethod, setSellerPaymentMethod] = useState('efectivo');
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>('despacho_domicilio');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [deliveryCommune, setDeliveryCommune] = useState('');
+  const [pickupBranch, setPickupBranch] = useState('');
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm);
   const [inventoryForm, setInventoryForm] = useState<InventoryFormState>(emptyInventoryForm);
   const [clienteForm, setClienteForm] = useState<ClienteFormState>(emptyClienteForm);
@@ -159,13 +174,14 @@ export default function App() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData] =
+      const [productData, inventoryData, clienteData, trabajadorData, orderData, warehouseData, transferData, imageData, categoryData, reportData, auditData] =
         await Promise.allSettled([
           api.getProducts(),
           api.getInventories(),
           api.getClientes(),
           api.getTrabajadores(),
           api.getOrders(),
+          api.getWarehouseOrders(),
           api.getPendingTransfers(),
           api.getProductImages(),
           api.getCategories(),
@@ -186,13 +202,14 @@ export default function App() {
         setSelectedVendedorId((current) => current || String(vendedor?.id ?? trabajadorData.value[0]?.id ?? ''));
       }
       if (orderData.status === 'fulfilled') setOrders(orderData.value);
+      if (warehouseData.status === 'fulfilled') setWarehouseOrders(warehouseData.value);
       if (transferData.status === 'fulfilled') setPendingTransfers(transferData.value);
       if (imageData.status === 'fulfilled') setImages(imageData.value);
       if (categoryData.status === 'fulfilled') setCategories(categoryData.value);
       if (reportData.status === 'fulfilled') setReportSummary(reportData.value);
       if (auditData.status === 'fulfilled') setAuditLogs(auditData.value);
 
-      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, transferData, imageData, categoryData, reportData, auditData]
+      const rejected = [productData, inventoryData, clienteData, trabajadorData, orderData, warehouseData, transferData, imageData, categoryData, reportData, auditData]
         .filter((item) => item.status === 'rejected');
       setStatusMessage(rejected.length ? `Datos cargados parcialmente (${rejected.length} modulo(s) con error).` : 'Catalogo actualizado.');
     } catch (error) {
@@ -214,7 +231,19 @@ export default function App() {
 
   useEffect(() => {
     if (session?.rol) setActiveView(normalizeView(session.rol));
+    if (session) {
+      window.localStorage.setItem(sessionStorageKey, JSON.stringify(session));
+    }
   }, [session]);
+
+  useEffect(() => {
+    if (session?.tipoUsuario !== 'cliente') return;
+    const cliente = clientes.find((item) => item.id === session.id);
+    if (cliente) {
+      setDeliveryAddress((current) => current || cliente.direccion || '');
+      setDeliveryCommune((current) => current || cliente.comuna || session.comuna || '');
+    }
+  }, [clientes, session]);
 
   const routeProductId = path.match(/^\/producto\/(\d+)/)?.[1];
   const selectedRouteProduct = routeProductId ? products.find((product) => product.id === Number(routeProductId)) : null;
@@ -244,6 +273,7 @@ export default function App() {
 
         if (response.status?.toUpperCase() === 'AUTHORIZED') {
           setStatusMessage('Pago autorizado. Volviendo al catálogo...');
+          await loadData();
           setTimeout(() => {
             setTransbankResponse(null);
             setTransbankStatus(null);
@@ -265,6 +295,14 @@ export default function App() {
     return Array.from(new Set(names)).sort((a, b) => a.localeCompare(b));
   }, [inventories]);
 
+  const pickupBranches = useMemo(() => branches.filter((branch) => !branch.toLowerCase().includes('web') && !branch.toLowerCase().includes('online')), [branches]);
+
+  useEffect(() => {
+    if (!pickupBranch && pickupBranches.length > 0) {
+      setPickupBranch(pickupBranches[0]);
+    }
+  }, [pickupBranch, pickupBranches]);
+
   const visibleProducts = products.filter((product) => {
     const text = `${product.nombreProducto} ${product.marca ?? ''} ${product.codigoSku ?? ''} ${product.categoriaNombre ?? ''}`.toLowerCase();
     const matchesSearch = text.includes(storeSearchQuery.toLowerCase());
@@ -279,6 +317,8 @@ export default function App() {
   const totalStock = inventories.reduce((sum, item) => sum + (item.stockActual ?? 0), 0);
   const webStock = inventories.filter((item) => isWebStock(item)).reduce((sum, item) => sum + item.stockActual, 0);
   const lowStock = inventories.filter((item) => item.stockActual <= item.stockMinimo);
+  const branchStock = totalStock - webStock;
+  const boletasEmitidas = warehouseOrders.filter((order) => Boolean(order.numeroBoleta)).length;
   const totalSales = orders.reduce((sum, order) => sum + Number(order.total ?? 0), 0);
   const clientTotal = clientCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
   const sellerTotal = sellerCart.reduce((sum, item) => sum + item.precio * item.cantidad, 0);
@@ -305,6 +345,21 @@ export default function App() {
 
   function inventoriesForProduct(productId: number) {
     return inventories.filter((item) => item.productoId === productId);
+  }
+
+  function sortedInventoriesForProduct(productId: number) {
+    return inventoriesForProduct(productId).sort((a, b) => {
+      if (isWebStock(a) && !isWebStock(b)) return -1;
+      if (!isWebStock(a) && isWebStock(b)) return 1;
+      return stockPlace(a).localeCompare(stockPlace(b));
+    });
+  }
+
+  function stockSummary(productId: number) {
+    const items = sortedInventoriesForProduct(productId);
+    const web = items.find((item) => isWebStock(item));
+    const branches = items.filter((item) => !isWebStock(item));
+    return { web, branches, items };
   }
 
   function stockPlace(item: InventoryItem) {
@@ -429,6 +484,40 @@ export default function App() {
     ]);
   }
 
+  function preferredSellerInventory(product: Product) {
+    const productInventories = sortedInventoriesForProduct(product.id).filter((item) => item.stockActual > 0);
+    return productInventories.find((item) => stockPlace(item) === pickupBranch)
+      ?? productInventories.find((item) => !isWebStock(item))
+      ?? productInventories[0];
+  }
+
+  function addSellerProduct(product: Product) {
+    const inventory = preferredSellerInventory(product);
+    if (!inventory) {
+      setStatusMessage(`Sin stock disponible para ${product.nombreProducto}.`);
+      return;
+    }
+    addToCart(sellerCart, setSellerCart, product, inventory);
+  }
+
+  function addSellerProductFromSearch() {
+    const query = sellerSearchDraft.trim().toLowerCase();
+    if (!query) return;
+    const product = products.find((item) => (
+      item.codigoSku?.toLowerCase() === query
+      || item.nombreProducto.toLowerCase() === query
+      || item.codigoSku?.toLowerCase().includes(query)
+      || item.nombreProducto.toLowerCase().includes(query)
+    ));
+    if (!product) {
+      setStatusMessage('Producto no encontrado en el punto de venta.');
+      return;
+    }
+    addSellerProduct(product);
+    setSellerSearchDraft('');
+    setSellerSearchQuery('');
+  }
+
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setStatusMessage('Validando usuario...');
@@ -446,6 +535,7 @@ export default function App() {
 
   function logout() {
     setSession(null);
+    window.localStorage.removeItem(sessionStorageKey);
     setActiveView('cliente');
   }
 
@@ -472,16 +562,34 @@ export default function App() {
       return;
     }
 
+    const tipoEntrega = kind === 'cliente' ? deliveryMode : 'retiro_tienda';
+    const direccionEntrega = tipoEntrega === 'despacho_domicilio' ? deliveryAddress.trim() : '';
+    const comunaEntrega = tipoEntrega === 'despacho_domicilio' ? deliveryCommune.trim() : '';
+    const sucursalRetiro = tipoEntrega === 'retiro_tienda' ? pickupBranch.trim() : '';
+
+    if (tipoEntrega === 'despacho_domicilio' && (!direccionEntrega || !comunaEntrega)) {
+      setStatusMessage('Indica dirección y comuna para el despacho.');
+      return;
+    }
+
+    if (tipoEntrega === 'retiro_tienda' && !sucursalRetiro) {
+      setStatusMessage('Selecciona la sucursal donde retirarás el pedido.');
+      return;
+    }
+
     const payload = {
       clienteId: Number(clienteId),
       trabajadorId: trabajadorId ? Number(trabajadorId) : null,
       metodoPago,
-      tipoEntrega: kind === 'cliente' ? 'despacho_domicilio' : 'retiro_tienda',
+      tipoEntrega,
+      direccionEntrega: direccionEntrega || null,
+      comunaEntrega: comunaEntrega || null,
+      sucursalRetiro: sucursalRetiro || null,
       items: cart.map(({ productoId, inventarioId, sucursal, cantidad }) => ({ productoId, inventarioId, sucursal: sucursal ?? undefined, cantidad })),
     };
 
     try {
-      setStatusMessage('Procesando venta y descontando stock...');
+      setStatusMessage(metodoPago === 'tarjeta' ? 'Creando pedido y enviando a Transbank...' : 'Procesando venta y descontando stock...');
       const saleResponse = kind === 'cliente'
         ? await api.createClientSale(payload)
         : await api.createSellerSale(payload);
@@ -753,6 +861,31 @@ export default function App() {
                 <option value="transferencia">Transferencia</option>
                 <option value="efectivo">Efectivo</option>
               </select>
+              {checkoutKind === 'cliente' && (
+                <>
+                  <select value={deliveryMode} onChange={(event) => setDeliveryMode(event.target.value as DeliveryMode)}>
+                    <option value="despacho_domicilio">Enviar a dirección</option>
+                    <option value="retiro_tienda">Retiro en sucursal</option>
+                  </select>
+                  {deliveryMode === 'despacho_domicilio' ? (
+                    <>
+                      <input placeholder="Dirección de entrega" value={deliveryAddress} onChange={(event) => setDeliveryAddress(event.target.value)} />
+                      <input placeholder="Comuna de entrega" value={deliveryCommune} onChange={(event) => setDeliveryCommune(event.target.value)} />
+                    </>
+                  ) : (
+                    <select value={pickupBranch} onChange={(event) => setPickupBranch(event.target.value)}>
+                      <option value="">Selecciona sucursal</option>
+                      {pickupBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                    </select>
+                  )}
+                </>
+              )}
+              {checkoutKind === 'vendedor' && (
+                <select value={pickupBranch} onChange={(event) => setPickupBranch(event.target.value)}>
+                  <option value="">Sucursal de retiro</option>
+                  {pickupBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+                </select>
+              )}
               <button className="primary-button" type="button" onClick={() => {
                 if (checkoutKind === 'cliente') {
                   setClientPaymentMethod(checkoutMethod);
@@ -828,7 +961,7 @@ export default function App() {
 
         <section className="product-grid">
           {visibleProducts.map((product) => {
-            const productInventories = inventoriesForProduct(product.id);
+            const { web, branches: branchInventories, items: productInventories } = stockSummary(product.id);
             const availableInventories = productInventories.filter((item) => item.stockActual > 0);
             const selectedInventory = availableInventories.find((item) => isWebStock(item)) ?? availableInventories[0];
             return (
@@ -842,11 +975,42 @@ export default function App() {
                   <h3>{product.nombreProducto}</h3>
                   <p>{product.descripcion ?? 'Producto disponible para compra.'}</p>
                   <strong className="price">{money(product.precio)}</strong>
-                  <div className="stock-list">
+                  <div className="stock-panel">
+                    <div className="stock-main-row">
+                      <span>Stock web</span>
+                      <strong>{web?.stockActual ?? 0}</strong>
+                    </div>
+                    <div className="stock-branches">
+                      {branchInventories.length === 0 ? <span className="stock-empty">Sin sucursales</span> : branchInventories.map((item) => (
+                        <button
+                          key={item.idInventario}
+                          type="button"
+                          disabled={item.stockActual <= 0 || !session}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            addToCart(clientCart, setClientCart, product, item);
+                          }}
+                        >
+                          <span>{stockPlace(item)}</span>
+                          <strong>{item.stockActual}</strong>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="stock-list compact-stock-list">
                     {productInventories.length === 0 ? <span className="stock-empty">Sin stock registrado</span> : productInventories.map((item) => (
-                      <span className={isWebStock(item) ? 'stock-web' : ''} key={item.idInventario}>
+                      <button
+                        className={isWebStock(item) ? 'stock-web' : ''}
+                        key={item.idInventario}
+                        type="button"
+                        disabled={item.stockActual <= 0 || !session}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          addToCart(clientCart, setClientCart, product, item);
+                        }}
+                      >
                         {isWebStock(item) ? 'Web' : stockPlace(item)}: {item.stockActual}
-                      </span>
+                      </button>
                     ))}
                   </div>
                   <button
@@ -881,73 +1045,96 @@ export default function App() {
   }
 
   function renderSeller() {
+    const selectedCliente = clientes.find((cliente) => cliente.id === Number(selectedSellerClienteId));
+    const sellerProducts = sellerVisibleProducts.slice(0, 18);
+    const sellerCartUnits = sellerCart.reduce((sum, item) => sum + item.cantidad, 0);
+
     return (
-      <section className="work-layout">
-        <article className="panel-card">
-          <div className="card-head"><h3>Panel de ventas</h3><span>Operaciones</span></div>
-          <div className="admin-module-grid">
-            <article className="panel-card admin-module-card active">
-              <strong>Ventas rápidas</strong>
-              <p>Vende productos y elige el método de pago antes de confirmar.</p>
-            </article>
-            <article className="panel-card admin-module-card active">
-              <strong>Reportes</strong>
-              <p>Revisa las operaciones del día y los eventos de auditoría.</p>
-            </article>
+      <section className="pos-layout">
+        <div className="pos-main">
+          <article className="pos-header panel-card">
+            <div>
+              <p className="eyebrow">Punto de venta fijo</p>
+              <h3>Caja FERREMAS</h3>
+            </div>
+            <div className="pos-stats">
+              <span><strong>{money(totalSales)}</strong> ventas</span>
+              <span><strong>{orders.length}</strong> pedidos</span>
+              <span><strong>{sellerCartUnits}</strong> unidades</span>
+            </div>
+          </article>
+
+          <article className="pos-scan-panel panel-card">
+            <div className="pos-scan-input">
+              <input
+                autoFocus
+                value={sellerSearchDraft}
+                placeholder="Escanear SKU o buscar producto"
+                onChange={(event) => {
+                  setSellerSearchDraft(event.target.value);
+                  setSellerSearchQuery(event.target.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault();
+                    addSellerProductFromSearch();
+                  }
+                }}
+              />
+              <button className="primary-button" type="button" onClick={addSellerProductFromSearch}>Agregar</button>
+            </div>
+            <div className="pos-filters">
+              <select value={pickupBranch} onChange={(event) => setPickupBranch(event.target.value)}>
+                {pickupBranches.map((branch) => <option key={branch} value={branch}>{branch}</option>)}
+              </select>
+              <select value={selectedSellerClienteId} onChange={(event) => setSelectedSellerClienteId(event.target.value)}>
+                <option value="">Cliente mostrador</option>
+                {clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>)}
+              </select>
+              <select value={sellerPaymentMethod} onChange={(event) => setSellerPaymentMethod(event.target.value)}>
+                <option value="efectivo">Efectivo</option>
+                <option value="tarjeta">Tarjeta</option>
+                <option value="transferencia">Transferencia</option>
+              </select>
+            </div>
+          </article>
+
+          <section className="pos-product-grid">
+            {sellerProducts.map((product) => {
+              const inventory = preferredSellerInventory(product);
+              const totalAvailable = sortedInventoriesForProduct(product.id).reduce((sum, item) => sum + item.stockActual, 0);
+              return (
+                <button
+                  className="pos-product-button"
+                  key={product.id}
+                  type="button"
+                  disabled={!inventory}
+                  onClick={() => addSellerProduct(product)}
+                >
+                  <span>{product.codigoSku ?? product.marca ?? 'SKU'}</span>
+                  <strong>{product.nombreProducto}</strong>
+                  <em>{money(product.precio)}</em>
+                  <small>{inventory ? `${stockPlace(inventory)}: ${inventory.stockActual}` : `Total: ${totalAvailable}`}</small>
+                </button>
+              );
+            })}
+          </section>
+        </div>
+
+        <aside className="pos-ticket">
+          <div className="card-head">
+            <h3>Ticket</h3>
+            <span>{sellerCart.length}</span>
           </div>
-        </article>
-        <article className="panel-card metric-card">
-          <p className="sidebar-label">Reporte de ventas</p>
-          <strong>{money(totalSales)}</strong>
-          <p className="muted-copy">{orders.length} pedidos y {String(reportSummary.totalAuditoria ?? 0)} eventos registrados.</p>
-        </article>
-        <div className="toolbar-row">
-          {renderSearchBox(sellerSearchDraft, setSellerSearchDraft, setSellerSearchQuery, 'Buscar producto para vender')}
-          <select value={selectedSellerClienteId} onChange={(event) => setSelectedSellerClienteId(event.target.value)}>
-            <option value="">Cliente</option>
-            {clientes.map((cliente) => <option key={cliente.id} value={cliente.id}>{cliente.nombre}</option>)}
-          </select>
-          <select value={sellerPaymentMethod} onChange={(event) => setSellerPaymentMethod(event.target.value)}>
-            <option value="efectivo">Efectivo</option>
-            <option value="tarjeta">Tarjeta</option>
-            <option value="transferencia">Transferencia</option>
-          </select>
-        </div>
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Producto</th><th>Precio</th><th>Inventario comuna/web</th><th>Accion</th></tr></thead>
-            <tbody>
-              {sellerVisibleProducts.map((product) => {
-                const firstInventory = inventoriesForProduct(product.id).find((item) => item.stockActual > 0);
-                return (
-                  <tr key={product.id} onClick={() => goTo(`/producto/${product.id}`)}>
-                    <td>{product.nombreProducto}</td>
-                    <td>{money(product.precio)}</td>
-                    <td>{inventoriesForProduct(product.id).map((item) => `${isWebStock(item) ? 'Web' : stockPlace(item)}: ${item.stockActual}`).join(' / ') || 'Sin stock'}</td>
-                    <td>
-                      <button
-                        className="edit-button"
-                        type="button"
-                        disabled={!firstInventory}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          if (firstInventory) addToCart(sellerCart, setSellerCart, product, firstInventory);
-                        }}
-                      >
-                        Vender
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {renderCart(sellerCart, setSellerCart, sellerTotal, () => {
-          setCheckoutKind('vendedor');
-          setCheckoutMethod(sellerPaymentMethod);
-          setCheckoutModalOpen(true);
-        }, 'Venta asistida')}
+          <div className="pos-customer">
+            <strong>{selectedCliente?.nombre ?? 'Cliente mostrador'}</strong>
+            <span>{pickupBranch || 'Sucursal'}</span>
+          </div>
+          {renderCart(sellerCart, setSellerCart, sellerTotal, () => {
+            void submitSale('vendedor', sellerPaymentMethod);
+          }, 'Detalle venta')}
+          <button className="ghost-button full-button" type="button" onClick={() => setSellerCart([])} disabled={sellerCart.length === 0}>Limpiar ticket</button>
+        </aside>
       </section>
     );
   }
@@ -963,7 +1150,7 @@ export default function App() {
   }
 
   function renderWarehouse() {
-    const pendingOrders = orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente' || (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'listo');
+    const pendingOrders = warehouseOrders.filter((order) => ['pagado', 'pendiente', 'listo', 'preparando', 'entregando'].includes((order.estadoPedido ?? '').toLowerCase()));
     return (
       <section className="panel-grid">
         <article className="panel-card">
@@ -992,19 +1179,29 @@ export default function App() {
           </form>
         </article>
         <article className="panel-card list-card">
-          <div className="card-head"><h3>Pedidos listos para despacho</h3><span>{pendingOrders.length}</span></div>
+          <div className="card-head"><h3>Pedidos y boletas</h3><span>{pendingOrders.length}</span></div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>ID</th><th>Cliente</th><th>Estado</th><th>Pago</th><th>Accion</th></tr></thead>
+              <thead><tr><th>Pedido</th><th>Boleta</th><th>Cliente</th><th>Entrega</th><th>Productos</th><th>Accion</th></tr></thead>
               <tbody>{pendingOrders.map((order) => (
-                <tr key={order.idPedido}>
-                  <td>{order.idPedido}</td>
-                  <td>{order.cliente?.nombre ?? '-'}</td>
-                  <td>{order.estadoPedido?.nombreEstado ?? '-'}</td>
-                  <td>{order.metodoPago ?? '-'}</td>
+                <tr key={order.pedidoId}>
+                  <td>#{order.pedidoId}<br /><span className="muted-inline">{order.estadoPedido ?? '-'}</span></td>
+                  <td>{order.numeroBoleta ?? 'Pendiente'}</td>
+                  <td>{order.clienteNombre ?? '-'}</td>
+                  <td>{order.tipoEntrega === 'retiro_tienda' ? `Retiro: ${order.sucursalRetiro ?? '-'}` : `${order.direccionEntrega ?? '-'}, ${order.comunaEntrega ?? '-'}`}</td>
                   <td>
-                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'entregando')}>Marcar entregando</button>
-                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.idPedido, 'entregado')}>Marcar listo</button>
+                    <div className="order-items-list">
+                      {order.items.map((item, index) => (
+                        <span key={`${order.pedidoId}-${item.productoId ?? index}`}>
+                          {item.cantidad}x {item.nombreProducto ?? item.productoId} ({item.origenStock ?? 'stock'})
+                        </span>
+                      ))}
+                    </div>
+                  </td>
+                  <td>
+                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.pedidoId, 'preparando')}>Preparar</button>
+                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.pedidoId, 'listo')}>Listo</button>
+                    <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.pedidoId, 'entregando')}>Entregando</button>
                   </td>
                 </tr>
               ))}</tbody>
@@ -1097,27 +1294,41 @@ export default function App() {
     return (
       <section className="admin-stack">
         <article className="panel-card">
-          <div className="card-head"><h3>Reportes y auditoría</h3><span>{String(reportSummary.totalAuditoria ?? 0)}</span></div>
+          <div className="card-head"><h3>Resumen operativo</h3><span>{String(reportSummary.totalAuditoria ?? 0)}</span></div>
           <div className="metric-grid">
-            <div><strong>{String(reportSummary.totalPedidos ?? 0)}</strong><p>Pedidos</p></div>
-            <div><strong>{String(reportSummary.pedidosPendientes ?? 0)}</strong><p>Pendientes</p></div>
-            <div><strong>{String(reportSummary.pedidosListos ?? 0)}</strong><p>Listos</p></div>
-            <div><strong>{String(reportSummary.pedidosEntregando ?? 0)}</strong><p>Entregando</p></div>
+            <div><strong>{orders.length}</strong><p>Pedidos</p></div>
+            <div><strong>{boletasEmitidas}</strong><p>Boletas</p></div>
+            <div><strong>{webStock}</strong><p>Stock web</p></div>
+            <div><strong>{branchStock}</strong><p>Stock sucursales</p></div>
           </div>
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Entidad</th><th>Accion</th><th>Detalle</th></tr></thead>
-              <tbody>{auditLogs.slice(0, 8).map((log, index) => {
-                const safeLog = log as Record<string, unknown>;
-                return (
-                  <tr key={index}>
-                    <td>{String(safeLog.entidad ?? '-')}</td>
-                    <td>{String(safeLog.accion ?? '-')}</td>
-                    <td>{String(safeLog.detalle ?? '-')}</td>
-                  </tr>
-                );
-              })}</tbody>
-            </table>
+          <div className="admin-insight-grid">
+            <div>
+              <span>Inventarios bajo mínimo</span>
+              <strong>{lowStock.length}</strong>
+            </div>
+            <div>
+              <span>Sucursales visibles</span>
+              <strong>{pickupBranches.length}</strong>
+            </div>
+            <div>
+              <span>Pedidos bodega</span>
+              <strong>{warehouseOrders.length}</strong>
+            </div>
+            <div>
+              <span>Ventas registradas</span>
+              <strong>{money(totalSales)}</strong>
+            </div>
+          </div>
+          <div className="admin-activity-list">
+            {auditLogs.slice(0, 4).map((log, index) => {
+              const safeLog = log as Record<string, unknown>;
+              return (
+                <span key={index}>
+                  <strong>{String(safeLog.entidad ?? 'Sistema')}</strong>
+                  {String(safeLog.accion ?? '-')}: {String(safeLog.detalle ?? '-')}
+                </span>
+              );
+            })}
           </div>
         </article>
         <div className="admin-module-grid">
@@ -1199,13 +1410,7 @@ export default function App() {
       ]));
     }
     if (module === 'inventario') {
-      return renderSimpleTable(['ID', 'Producto', 'Bodega/Sucursal', 'Stock', 'Minimo'], inventories.map((item) => [
-        item.idInventario,
-        item.nombreProducto ?? item.productoId ?? '-',
-        stockPlace(item),
-        item.stockActual,
-        item.stockMinimo,
-      ]));
+      return renderAdminInventoryDashboard();
     }
     if (module === 'clientes') {
       return renderSimpleTable(['ID', 'Nombre', 'Email', 'Telefono', 'Comuna'], clientes.map((cliente) => [
@@ -1226,13 +1431,7 @@ export default function App() {
       ]));
     }
     if (module === 'pedidos') {
-      return renderSimpleTable(['ID', 'Cliente', 'Estado', 'Pago', 'Total'], orders.map((order) => [
-        order.idPedido,
-        order.cliente?.nombre ?? '-',
-        order.estadoPedido?.nombreEstado ?? '-',
-        order.metodoPago ?? '-',
-        money(order.total),
-      ]));
+      return renderAdminOrdersDashboard();
     }
     if (module === 'categorias') {
       return renderSimpleTable(['ID', 'Nombre'], categories.map((category) => [category.id, category.nombreCategoria]));
@@ -1243,6 +1442,136 @@ export default function App() {
       image.urlImagen,
       image.principal ? 'Si' : 'No',
     ]));
+  }
+
+  function renderAdminInventoryDashboard() {
+    return (
+      <div className="admin-data-stack">
+        <div className="admin-insight-grid">
+          <div><span>Registros inventario</span><strong>{inventories.length}</strong></div>
+          <div><span>Stock total</span><strong>{totalStock}</strong></div>
+          <div><span>Stock web</span><strong>{webStock}</strong></div>
+          <div><span>Bajo mínimo</span><strong>{lowStock.length}</strong></div>
+        </div>
+        <div className="table-wrap">
+          <table className="stock-matrix-table">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Stock web</th>
+                <th>Sucursales</th>
+                <th>Total</th>
+                <th>Alertas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {products.map((product) => {
+                const { web, branches: productBranches } = stockSummary(product.id);
+                const productInventory = sortedInventoriesForProduct(product.id);
+                const productTotal = productInventory.reduce((sum, item) => sum + item.stockActual, 0);
+                const productLowStock = productInventory.filter((item) => item.stockActual <= item.stockMinimo);
+                return (
+                  <tr key={product.id}>
+                    <td>
+                      <strong>{product.nombreProducto}</strong>
+                      <br />
+                      <span className="muted-inline">{product.codigoSku ?? 'SKU no registrado'}</span>
+                    </td>
+                    <td><span className="stock-web-pill">{web?.stockActual ?? 0}</span></td>
+                    <td>
+                      <div className="admin-stock-list">
+                        {productBranches.map((item) => (
+                          <span key={item.idInventario}>{stockPlace(item)}: <strong>{item.stockActual}</strong></span>
+                        ))}
+                      </div>
+                    </td>
+                    <td>{productTotal}</td>
+                    <td>{productLowStock.length ? `${productLowStock.length} bajo minimo` : 'OK'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  function renderAdminOrdersDashboard() {
+    const boletaOrders = warehouseOrders.length ? warehouseOrders : orders.map((order) => ({
+      pedidoId: order.idPedido,
+      numeroBoleta: order.numeroBoleta,
+      clienteNombre: order.cliente?.nombre,
+      estadoPedido: order.estadoPedido?.nombreEstado,
+      metodoPago: order.metodoPago,
+      tipoEntrega: order.tipoEntrega,
+      direccionEntrega: order.direccionEntrega,
+      comunaEntrega: order.comunaEntrega,
+      sucursalRetiro: order.sucursalRetiro,
+      neto: order.neto,
+      iva: order.iva,
+      total: order.total,
+      items: [],
+    }));
+
+    return (
+      <div className="admin-data-stack">
+        <div className="admin-insight-grid">
+          <div><span>Pedidos</span><strong>{orders.length}</strong></div>
+          <div><span>Boletas emitidas</span><strong>{boletasEmitidas}</strong></div>
+          <div><span>Pendientes</span><strong>{orders.filter((order) => (order.estadoPedido?.nombreEstado ?? '').toLowerCase() === 'pendiente').length}</strong></div>
+          <div><span>Total vendido</span><strong>{money(totalSales)}</strong></div>
+        </div>
+        <div className="table-wrap">
+          <table className="orders-admin-table">
+            <thead>
+              <tr>
+                <th>Pedido</th>
+                <th>Boleta</th>
+                <th>Cliente</th>
+                <th>Entrega</th>
+                <th>Totales</th>
+                <th>Productos</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody>
+              {boletaOrders.map((order) => (
+                <tr key={order.pedidoId}>
+                  <td>#{order.pedidoId}<br /><span className="muted-inline">{order.metodoPago ?? '-'}</span></td>
+                  <td>{order.numeroBoleta ?? 'Sin emitir'}</td>
+                  <td>{order.clienteNombre ?? '-'}</td>
+                  <td>{order.tipoEntrega === 'retiro_tienda' ? `Retiro: ${order.sucursalRetiro ?? '-'}` : `${order.direccionEntrega ?? '-'}, ${order.comunaEntrega ?? '-'}`}</td>
+                  <td>
+                    <div className="order-total-stack">
+                      <span>Neto {money(order.neto)}</span>
+                      <span>IVA {money(order.iva)}</span>
+                      <strong>{money(order.total)}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="order-items-list">
+                      {order.items.length ? order.items.map((item, index) => (
+                        <span key={`${order.pedidoId}-${item.productoId ?? index}`}>
+                          {item.cantidad}x {item.nombreProducto ?? item.productoId} ({item.origenStock ?? 'stock'})
+                        </span>
+                      )) : <span>Sin detalle cargado</span>}
+                    </div>
+                  </td>
+                  <td>
+                    <span className="status-pill">{order.estadoPedido ?? '-'}</span>
+                    <div className="admin-order-actions">
+                      <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.pedidoId, 'preparando')}>Preparar</button>
+                      <button className="edit-button" type="button" onClick={() => handleOrderStatusChange(order.pedidoId, 'listo')}>Listo</button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
   }
 
   function renderAdminAdd(module: AdminModule) {
@@ -1472,7 +1801,7 @@ export default function App() {
   }
 
   function renderProductDetail(product: Product) {
-    const productInventories = inventoriesForProduct(product.id);
+    const productInventories = sortedInventoriesForProduct(product.id);
     const availableInventories = productInventories.filter((item) => item.stockActual > 0);
     const selectedInventory = availableInventories.find((item) => isWebStock(item)) ?? availableInventories[0];
 
@@ -1508,7 +1837,7 @@ export default function App() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Bodega/Sucursal</th><th>Ubicacion</th><th>Stock actual</th><th>Stock minimo</th><th>Proveedor</th></tr>
+                <tr><th>Bodega/Sucursal</th><th>Ubicacion</th><th>Stock actual</th><th>Stock minimo</th><th>Proveedor</th><th>Accion</th></tr>
               </thead>
               <tbody>
                 {productInventories.map((item) => (
@@ -1518,10 +1847,11 @@ export default function App() {
                     <td>{item.stockActual}</td>
                     <td>{item.stockMinimo}</td>
                     <td>{item.nombreProveedor ?? item.proveedorId ?? '-'}</td>
+                    <td><button className="edit-button" type="button" disabled={item.stockActual <= 0 || !session} onClick={() => addToCart(clientCart, setClientCart, product, item)}>Agregar</button></td>
                   </tr>
                 ))}
                 {productInventories.length === 0 && (
-                  <tr><td colSpan={5}>No hay inventario registrado para este producto.</td></tr>
+                  <tr><td colSpan={6}>No hay inventario registrado para este producto.</td></tr>
                 )}
               </tbody>
             </table>

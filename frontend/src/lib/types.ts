@@ -123,6 +123,14 @@ export type OrderItem = {
   total?: number | string | null;
   metodoPago?: string | null;
   tipoEntrega?: string | null;
+  direccionEntrega?: string | null;
+  comunaEntrega?: string | null;
+  sucursalRetiro?: string | null;
+  numeroBoleta?: string | null;
+  neto?: number | string | null;
+  iva?: number | string | null;
+  boletaEmitida?: boolean | null;
+  fechaBoleta?: string | null;
 };
 
 export type TransbankResponse = {
@@ -152,7 +160,41 @@ export type SaleRequest = {
   trabajadorId?: number | null;
   metodoPago: string;
   tipoEntrega: string;
+  direccionEntrega?: string | null;
+  comunaEntrega?: string | null;
+  sucursalRetiro?: string | null;
   items: SaleItem[];
+};
+
+export type BoletaItem = {
+  productoId?: number | null;
+  nombreProducto?: string | null;
+  sku?: string | null;
+  cantidad: number;
+  precioUnitario?: number | string | null;
+  subtotal?: number | string | null;
+  inventarioId?: number | null;
+  origenStock?: string | null;
+};
+
+export type BoletaPedido = {
+  pedidoId: number;
+  numeroBoleta?: string | null;
+  fechaPedido?: string | null;
+  fechaBoleta?: string | null;
+  clienteNombre?: string | null;
+  clienteRut?: string | null;
+  clienteEmail?: string | null;
+  metodoPago?: string | null;
+  estadoPedido?: string | null;
+  tipoEntrega?: string | null;
+  direccionEntrega?: string | null;
+  comunaEntrega?: string | null;
+  sucursalRetiro?: string | null;
+  neto?: number | string | null;
+  iva?: number | string | null;
+  total?: number | string | null;
+  items: BoletaItem[];
 };
 
 export type LoginRequest = {

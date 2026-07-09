@@ -18,12 +18,14 @@ public class PagoService {
     private final PagoRepository pagoRepository;
     private final PedidoRepository pedidoRepository;
     private final TransbankService transbankService;
+    private final VentaService ventaService;
 
     public PagoService(PagoRepository pagoRepository, PedidoRepository pedidoRepository,
-            TransbankService transbankService) {
+            TransbankService transbankService, VentaService ventaService) {
         this.pagoRepository = pagoRepository;
         this.pedidoRepository = pedidoRepository;
         this.transbankService = transbankService;
+        this.ventaService = ventaService;
     }
 
     public List<Pago> listarTodos() {
@@ -70,18 +72,7 @@ public class PagoService {
     }
 
     public TransbankTransactionResponse obtenerEstadoTransbank(Integer pagoId, String token) throws Exception {
-        Pago pago = pagoRepository.findById(pagoId)
-                .orElseThrow(() -> new IllegalArgumentException("Pago no encontrado"));
-
-        TransbankTransactionResponse estado = transbankService.obtenerEstadoTransaccion(token);
-        if ("AUTHORIZED".equals(estado.getStatus())) {
-            pago.setEstadoPago("COMPLETADO");
-            pagoRepository.save(pago);
-        } else if ("REVERSED".equals(estado.getStatus())) {
-            pago.setEstadoPago("RECHAZADO");
-            pagoRepository.save(pago);
-        }
-        return estado;
+        return ventaService.confirmarPagoTransbank(pagoId, token).getTransbankResponse();
     }
 
     public Pago actualizar(Integer id, PagoDTO dto) {

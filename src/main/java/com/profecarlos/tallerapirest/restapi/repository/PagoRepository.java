@@ -10,5 +10,7 @@ public interface PagoRepository extends JpaRepository<Pago, Integer> {
 
     Optional<Pago> findByPedidoIdPedido(Integer pedidoId);
 
+    Optional<Pago> findByTokenTransbank(String tokenTransbank);
+
     boolean existsByPedidoIdPedido(Integer pedidoId);
 }

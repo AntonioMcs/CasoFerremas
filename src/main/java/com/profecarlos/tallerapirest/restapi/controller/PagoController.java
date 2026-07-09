@@ -22,6 +22,7 @@ import com.profecarlos.tallerapirest.restapi.repository.PagoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
 import com.profecarlos.tallerapirest.restapi.service.TransbankService;
 import com.profecarlos.tallerapirest.restapi.service.TransbankTransactionResponse;
+import com.profecarlos.tallerapirest.restapi.service.VentaService;
 
 import jakarta.validation.Valid;
 
@@ -32,11 +33,14 @@ public class PagoController {
     private final PagoRepository pagoRepository;
     private final PedidoRepository pedidoRepository;
     private final TransbankService transbankService;
+    private final VentaService ventaService;
 
-    public PagoController(PagoRepository pagoRepository, PedidoRepository pedidoRepository, TransbankService transbankService) {
+    public PagoController(PagoRepository pagoRepository, PedidoRepository pedidoRepository, TransbankService transbankService,
+            VentaService ventaService) {
         this.pagoRepository = pagoRepository;
         this.pedidoRepository = pedidoRepository;
         this.transbankService = transbankService;
+        this.ventaService = ventaService;
     }
 
     @GetMapping
@@ -186,15 +190,7 @@ public class PagoController {
                         .body("⚠️ Pago no encontrado con ID: " + pagoId);
             }
 
-            TransbankTransactionResponse estado = transbankService.obtenerEstadoTransaccion(token);
-
-            if ("AUTHORIZED".equalsIgnoreCase(estado.getStatus())) {
-                pago.setEstadoPago("COMPLETADO");
-                pagoRepository.save(pago);
-            } else if ("REVERSED".equalsIgnoreCase(estado.getStatus())) {
-                pago.setEstadoPago("RECHAZADO");
-                pagoRepository.save(pago);
-            }
+            TransbankTransactionResponse estado = ventaService.confirmarPagoTransbank(pagoId, token).getTransbankResponse();
 
             return ResponseEntity.ok(estado);
         } catch (Exception e) {

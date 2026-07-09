@@ -2,6 +2,7 @@ import axios from 'axios';
 import type {
   CategoryFormState,
   CategoryItem,
+  BoletaPedido,
   Cliente,
   ClienteFormState,
   InventoryFormState,
@@ -196,6 +197,11 @@ export const api = {
 
   async getOrders(): Promise<OrderItem[]> {
     const { data } = await client.get('/api/v1/pedidos');
+    return Array.isArray(data) ? data : [];
+  },
+
+  async getWarehouseOrders(): Promise<BoletaPedido[]> {
+    const { data } = await client.get('/api/v1/pedidos/bodega');
     return Array.isArray(data) ? data : [];
   },
 

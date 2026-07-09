@@ -20,6 +20,10 @@ public class VentaRequestDTO {
     @NotBlank
     private String tipoEntrega;
 
+    private String direccionEntrega;
+    private String comunaEntrega;
+    private String sucursalRetiro;
+
     @Valid
     @NotEmpty
     private List<VentaItemDTO> items;
@@ -57,6 +61,30 @@ public class VentaRequestDTO {
 
     public void setTipoEntrega(String tipoEntrega) {
         this.tipoEntrega = tipoEntrega;
+    }
+
+    public String getDireccionEntrega() {
+        return direccionEntrega;
+    }
+
+    public void setDireccionEntrega(String direccionEntrega) {
+        this.direccionEntrega = direccionEntrega;
+    }
+
+    public String getComunaEntrega() {
+        return comunaEntrega;
+    }
+
+    public void setComunaEntrega(String comunaEntrega) {
+        this.comunaEntrega = comunaEntrega;
+    }
+
+    public String getSucursalRetiro() {
+        return sucursalRetiro;
+    }
+
+    public void setSucursalRetiro(String sucursalRetiro) {
+        this.sucursalRetiro = sucursalRetiro;
     }
 
     public List<VentaItemDTO> getItems() {
