@@ -168,3 +168,31 @@ export type SessionUser = {
   tipoUsuario: 'cliente' | 'trabajador' | string;
   comuna?: string | null;
 };
+
+export type AuditLog = {
+  idLog: number;
+  fecha?: string | null;
+  tipoUsuario: string;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  rol?: string | null;
+  modulo: string;
+  accion: string;
+  descripcion?: string | null;
+  entidad?: string | null;
+  entidadId?: number | null;
+  ip?: string | null;
+  userAgent?: string | null;
+};
+
+export type AuditLogRequest = {
+  tipoUsuario: string;
+  idUsuario: number;
+  nombreUsuario?: string | null;
+  rol?: string | null;
+  modulo: string;
+  accion: string;
+  descripcion?: string | null;
+  entidad?: string | null;
+  entidadId?: number | null;
+};

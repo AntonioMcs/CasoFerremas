@@ -2,6 +2,8 @@ import axios from 'axios';
 import type {
   CategoryFormState,
   CategoryItem,
+  AuditLog,
+  AuditLogRequest,
   Cliente,
   ClienteFormState,
   InventoryFormState,
@@ -234,8 +236,12 @@ export const api = {
     return data ?? {};
   },
 
-  async getAuditLogs(): Promise<unknown[]> {
+  async getAuditLogs(): Promise<AuditLog[]> {
     const { data } = await client.get('/api/v1/audit-logs');
     return Array.isArray(data) ? data : [];
+  },
+
+  async createAuditLog(payload: AuditLogRequest): Promise<void> {
+    await client.post('/api/v1/audit-logs', payload);
   },
 };

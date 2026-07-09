@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api, apiBaseUrl, getApiErrorMessage } from './lib/api';
 import type {
+  AuditLog,
   CategoryFormState,
   CategoryItem,
   Cliente,
@@ -113,7 +114,9 @@ export default function App() {
   const [images, setImages] = useState<ProductImage[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>([]);
   const [reportSummary, setReportSummary] = useState<Record<string, unknown>>({});
-  const [auditLogs, setAuditLogs] = useState<unknown[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
+  const [showAllMovements, setShowAllMovements] = useState(false);
+  const [movementUserFilter, setMovementUserFilter] = useState('todos');
   const [loading, setLoading] = useState(true);
   const [statusMessage, setStatusMessage] = useState('');
   const [transbankStatus, setTransbankStatus] = useState<string | null>(null);
@@ -275,6 +278,13 @@ export default function App() {
 
   const sellerVisibleProducts = products.filter((product) => productMatches(product, sellerSearchQuery));
   const adminVisibleProducts = products.filter((product) => productMatches(product, adminSearchQuery));
+  const movementUsers = Array.from(
+    new Map(auditLogs.map((log) => [`${log.tipoUsuario}:${log.idUsuario}`, log])).values(),
+  );
+  const visibleAuditLogs = auditLogs.filter((log) => {
+    if (movementUserFilter === 'todos') return true;
+    return `${log.tipoUsuario}:${log.idUsuario}` === movementUserFilter;
+  });
 
   const totalStock = inventories.reduce((sum, item) => sum + (item.stockActual ?? 0), 0);
   const webStock = inventories.filter((item) => isWebStock(item)).reduce((sum, item) => sum + item.stockActual, 0);
@@ -339,6 +349,27 @@ export default function App() {
   function goTo(pathname: string) {
     window.history.pushState(null, '', pathname);
     setPath(pathname);
+  }
+
+  async function logMovement(modulo: string, accion: string, descripcion: string, entidad?: string, entidadId?: number) {
+    if (!session) return;
+    try {
+      await api.createAuditLog({
+        tipoUsuario: session.tipoUsuario,
+        idUsuario: session.id,
+        nombreUsuario: session.nombre,
+        rol: session.rol,
+        modulo,
+        accion,
+        descripcion,
+        entidad,
+        entidadId,
+      });
+      const logs = await api.getAuditLogs();
+      setAuditLogs(logs);
+    } catch (error) {
+      console.warn('No se pudo registrar el movimiento', error);
+    }
   }
 
   function productImage(productId: number) {
@@ -414,6 +445,7 @@ export default function App() {
           ? { ...line, cantidad: line.cantidad + 1 }
           : line
       )));
+      void logMovement('carrito', 'AGREGAR_UNIDAD', `Agrego otra unidad de ${product.nombreProducto}`, 'PRODUCTO', product.id);
       return;
     }
     setCart([
@@ -427,6 +459,7 @@ export default function App() {
         precio: Number(product.precio),
       },
     ]);
+    void logMovement('carrito', 'AGREGAR_PRODUCTO', `Agrego ${product.nombreProducto} al carrito desde ${stockPlace(inventory)}`, 'PRODUCTO', product.id);
   }
 
   async function submitLogin(event: FormEvent<HTMLFormElement>) {
@@ -438,13 +471,28 @@ export default function App() {
       setShowLogin(false);
       setLoginPassword('');
       if (user.tipoUsuario === 'cliente') setSelectedClienteId(String(user.id));
+      await api.createAuditLog({
+        tipoUsuario: user.tipoUsuario,
+        idUsuario: user.id,
+        nombreUsuario: user.nombre,
+        rol: user.rol,
+        modulo: 'auth',
+        accion: 'LOGIN',
+        descripcion: 'Inicio de sesion',
+        entidad: user.tipoUsuario,
+        entidadId: user.id,
+      });
+      setAuditLogs(await api.getAuditLogs());
       setStatusMessage(`Bienvenido, ${user.nombre}.`);
     } catch (error) {
       setStatusMessage(error instanceof Error ? error.message : 'No se pudo iniciar sesion.');
     }
   }
 
-  function logout() {
+  async function logout() {
+    if (session) {
+      await logMovement('auth', 'LOGOUT', 'Cierre de sesion', session.tipoUsuario, session.id);
+    }
     setSession(null);
     setActiveView('cliente');
   }
@@ -485,6 +533,13 @@ export default function App() {
       const saleResponse = kind === 'cliente'
         ? await api.createClientSale(payload)
         : await api.createSellerSale(payload);
+      await logMovement(
+        kind === 'cliente' ? 'checkout' : 'ventas',
+        'CREAR_VENTA',
+        `Venta ${kind} registrada con ${cart.length} item(s), metodo ${metodoPago}`,
+        'PEDIDO',
+        saleResponse.pedido?.idPedido,
+      );
 
       if (saleResponse.transbankResponse?.url) {
         setStatusMessage('Redirigiendo a Transbank para completar el pago...');
@@ -537,6 +592,7 @@ export default function App() {
   const submitProduct = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createProduct(productForm);
+    await logMovement('productos', 'CREAR', `Producto creado: ${productForm.nombreProducto}`, 'PRODUCTO');
     setProductForm(emptyProductForm);
     await loadData();
   };
@@ -544,6 +600,7 @@ export default function App() {
   const submitInventory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createInventory(inventoryForm);
+    await logMovement('inventario', 'CREAR', `Inventario creado para producto ID ${inventoryForm.productoId}`, 'INVENTARIO');
     setInventoryForm(emptyInventoryForm);
     await loadData();
   };
@@ -552,6 +609,7 @@ export default function App() {
     event.preventDefault();
     try {
       await api.createCliente(clienteForm);
+      await logMovement('clientes', 'CREAR', `Cliente creado: ${clienteForm.nombre}`, 'CLIENTE');
       setClienteForm(emptyClienteForm);
       await loadData();
       setStatusMessage('Usuario creado correctamente.');
@@ -564,6 +622,7 @@ export default function App() {
     event.preventDefault();
     try {
       await api.createTrabajador(trabajadorForm);
+      await logMovement('trabajadores', 'CREAR', `Trabajador creado: ${trabajadorForm.nombre}`, 'TRABAJADOR');
       setTrabajadorForm(emptyTrabajadorForm);
       await loadData();
       setStatusMessage('Trabajador creado correctamente.');
@@ -575,6 +634,7 @@ export default function App() {
   const submitImage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createProductImage(imageForm);
+    await logMovement('imagenes', 'CREAR', `Imagen creada para producto ID ${imageForm.productoId}`, 'PRODUCTO_IMAGEN');
     setImageForm(emptyImageForm);
     await loadData();
   };
@@ -582,6 +642,7 @@ export default function App() {
   const submitCategory = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await api.createCategory(categoryForm);
+    await logMovement('categorias', 'CREAR', `Categoria creada: ${categoryForm.nombreCategoria}`, 'CATEGORIA');
     setCategoryForm({ nombreCategoria: '' });
     await loadData();
   };
@@ -590,6 +651,7 @@ export default function App() {
     event.preventDefault();
     if (!editingProductId) return;
     await api.updateProduct(Number(editingProductId), productEditForm);
+    await logMovement('productos', 'ACTUALIZAR', `Producto actualizado: ${productEditForm.nombreProducto}`, 'PRODUCTO', Number(editingProductId));
     await loadData();
     setStatusMessage('Producto actualizado correctamente.');
   };
@@ -598,6 +660,7 @@ export default function App() {
     event.preventDefault();
     if (!editingInventoryId) return;
     await api.updateInventory(Number(editingInventoryId), inventoryEditForm);
+    await logMovement('inventario', 'ACTUALIZAR', `Inventario actualizado ID ${editingInventoryId}`, 'INVENTARIO', Number(editingInventoryId));
     await loadData();
     setStatusMessage('Inventario actualizado correctamente.');
   };
@@ -606,6 +669,7 @@ export default function App() {
     event.preventDefault();
     if (!editingClienteId) return;
     await api.updateCliente(Number(editingClienteId), clienteEditForm);
+    await logMovement('clientes', 'ACTUALIZAR', `Cliente actualizado: ${clienteEditForm.nombre}`, 'CLIENTE', Number(editingClienteId));
     await loadData();
     setStatusMessage('Cliente actualizado correctamente.');
   };
@@ -614,6 +678,7 @@ export default function App() {
     event.preventDefault();
     if (!editingTrabajadorId) return;
     await api.updateTrabajador(Number(editingTrabajadorId), trabajadorEditForm);
+    await logMovement('trabajadores', 'ACTUALIZAR', `Trabajador actualizado: ${trabajadorEditForm.nombre}`, 'TRABAJADOR', Number(editingTrabajadorId));
     await loadData();
     setStatusMessage('Trabajador actualizado correctamente.');
   };
@@ -622,6 +687,7 @@ export default function App() {
     event.preventDefault();
     if (!editingCategoryId) return;
     await api.updateCategory(Number(editingCategoryId), categoryEditForm);
+    await logMovement('categorias', 'ACTUALIZAR', `Categoria actualizada: ${categoryEditForm.nombreCategoria}`, 'CATEGORIA', Number(editingCategoryId));
     await loadData();
     setStatusMessage('Categoria actualizada correctamente.');
   };
@@ -630,6 +696,7 @@ export default function App() {
     event.preventDefault();
     if (!editingImageId) return;
     await api.updateProductImage(Number(editingImageId), imageEditForm);
+    await logMovement('imagenes', 'ACTUALIZAR', `Imagen actualizada ID ${editingImageId}`, 'PRODUCTO_IMAGEN', Number(editingImageId));
     await loadData();
     setStatusMessage('Imagen actualizada correctamente.');
   };
@@ -646,6 +713,7 @@ export default function App() {
         setStatusMessage('Eliminar pedidos requiere endpoint dedicado; no se ejecuto ninguna accion.');
         return;
       }
+      await logMovement(module, 'ELIMINAR', `Registro eliminado en modulo ${module}`, module.toUpperCase(), id);
       await loadData();
       setStatusMessage('Registro eliminado correctamente.');
     } catch (error) {
@@ -955,6 +1023,7 @@ export default function App() {
   async function handleOrderStatusChange(orderId: number, nextStatus: string) {
     try {
       await api.updateOrderStatus(orderId, nextStatus);
+      await logMovement('pedidos', 'CAMBIAR_ESTADO', `Pedido #${orderId} actualizado a ${nextStatus}`, 'PEDIDO', orderId);
       await loadData();
       setStatusMessage(`Pedido #${orderId} actualizado a ${nextStatus}.`);
     } catch (error) {
@@ -1104,22 +1173,37 @@ export default function App() {
             <div><strong>{String(reportSummary.pedidosListos ?? 0)}</strong><p>Listos</p></div>
             <div><strong>{String(reportSummary.pedidosEntregando ?? 0)}</strong><p>Entregando</p></div>
           </div>
+          <div className="audit-toolbar">
+            <button className="primary-button" type="button" onClick={() => setShowAllMovements((current) => !current)}>
+              {showAllMovements ? 'Ocultar movimientos' : 'Ver todos los movimientos'}
+            </button>
+            {showAllMovements && (
+              <select value={movementUserFilter} onChange={(event) => setMovementUserFilter(event.target.value)}>
+                <option value="todos">Todos los usuarios</option>
+                {movementUsers.map((log) => (
+                  <option key={`${log.tipoUsuario}:${log.idUsuario}`} value={`${log.tipoUsuario}:${log.idUsuario}`}>
+                    {log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`} ({log.rol ?? log.tipoUsuario})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Entidad</th><th>Accion</th><th>Detalle</th></tr></thead>
-              <tbody>{auditLogs.slice(0, 8).map((log, index) => {
-                const safeLog = log as Record<string, unknown>;
-                return (
-                  <tr key={index}>
-                    <td>{String(safeLog.entidad ?? '-')}</td>
-                    <td>{String(safeLog.accion ?? '-')}</td>
-                    <td>{String(safeLog.detalle ?? '-')}</td>
-                  </tr>
-                );
-              })}</tbody>
+              <thead><tr><th>Fecha</th><th>Usuario</th><th>Modulo</th><th>Accion</th><th>Descripcion</th></tr></thead>
+              <tbody>{auditLogs.slice(0, 8).map((log) => (
+                <tr key={log.idLog}>
+                  <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                  <td>{log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`}</td>
+                  <td>{log.modulo}</td>
+                  <td>{log.accion}</td>
+                  <td>{log.descripcion ?? '-'}</td>
+                </tr>
+              ))}</tbody>
             </table>
           </div>
         </article>
+        {showAllMovements && renderAllMovementsPanel()}
         <div className="admin-module-grid">
           {adminModules.map((module) => (
             <article className={`panel-card admin-module-card ${expandedAdminModule === module.key ? 'active' : ''}`} key={module.key}>
@@ -1170,6 +1254,53 @@ export default function App() {
       imagenes: images.length,
     };
     return counts[module];
+  }
+
+  function renderAllMovementsPanel() {
+    return (
+      <article className="panel-card audit-panel">
+        <div className="card-head">
+          <h3>Movimientos completos</h3>
+          <span>{visibleAuditLogs.length}</span>
+        </div>
+        <p className="muted-copy">
+          Incluye compras, inicios y cierres de sesion, cambios de carrito y acciones administrativas registradas por usuario.
+        </p>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th>Modulo</th>
+                <th>Accion</th>
+                <th>Entidad</th>
+                <th>Descripcion</th>
+                <th>IP</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleAuditLogs.map((log) => (
+                <tr key={log.idLog}>
+                  <td>{log.fecha?.slice(0, 16).replace('T', ' ') ?? '-'}</td>
+                  <td>{log.nombreUsuario ?? `${log.tipoUsuario} #${log.idUsuario}`}</td>
+                  <td>{log.rol ?? log.tipoUsuario}</td>
+                  <td>{log.modulo}</td>
+                  <td>{log.accion}</td>
+                  <td>{log.entidad ? `${log.entidad}${log.entidadId ? ` #${log.entidadId}` : ''}` : '-'}</td>
+                  <td>{log.descripcion ?? '-'}</td>
+                  <td>{log.ip ?? '-'}</td>
+                </tr>
+              ))}
+              {visibleAuditLogs.length === 0 && (
+                <tr><td colSpan={8}>No hay movimientos para el filtro seleccionado.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </article>
+    );
   }
 
   function renderAdminActionPanel(module: AdminModule) {
@@ -1580,6 +1711,7 @@ export default function App() {
 
       if (safeQuantity === 0) {
         setCart(cart.filter((item) => !(item.productoId === line.productoId && item.inventarioId === line.inventarioId)));
+        void logMovement('carrito', 'QUITAR_PRODUCTO', `Quito ${line.nombre} del carrito`, 'PRODUCTO', line.productoId);
         return;
       }
 
@@ -1592,6 +1724,9 @@ export default function App() {
           ? { ...item, cantidad: safeQuantity }
           : item
       )));
+      if (safeQuantity !== line.cantidad) {
+        void logMovement('carrito', 'CAMBIAR_CANTIDAD', `Cambio ${line.nombre} de ${line.cantidad} a ${safeQuantity} unidad(es)`, 'PRODUCTO', line.productoId);
+      }
     };
 
     return (
