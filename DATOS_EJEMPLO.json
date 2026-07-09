@@ -1,0 +1,160 @@
+{
+  "categorias": [
+    {
+      "id": 1,
+      "nombreCategoria": "Herrajes"
+    },
+    {
+      "id": 2,
+      "nombreCategoria": "Tuberías"
+    },
+    {
+      "id": 3,
+      "nombreCategoria": "Pinturas"
+    },
+    {
+      "id": 4,
+      "nombreCategoria": "Accesorios Eléctricos"
+    },
+    {
+      "id": 5,
+      "nombreCategoria": "Cemento y Adhesivos"
+    }
+  ],
+  "productos": [
+    {
+      "nombreProducto": "Pernos de Acero Inoxidable",
+      "marca": "FERMAX",
+      "descripcion": "Pernos de alta resistencia para construcción, acero inoxidable 304",
+      "precio": 15.99,
+      "stock": 500,
+      "unidadMedida": "caja de 100",
+      "codigoSku": "PERNO-001",
+      "categoriaId": 1
+    },
+    {
+      "nombreProducto": "Tubería PVC 1 pulgada",
+      "marca": "TIGRE",
+      "descripcion": "Tubería de PVC para agua fría, 1 pulgada de diámetro, rollo de 50 metros",
+      "precio": 45.50,
+      "stock": 120,
+      "unidadMedida": "rollo",
+      "codigoSku": "TUBERIA-PVC-001",
+      "categoriaId": 2
+    },
+    {
+      "nombreProducto": "Pintura Acrílica Interior Blanco",
+      "marca": "SOWAY",
+      "descripcion": "Pintura acrílica de alta cobertura para interiores, color blanco, acabado mate",
+      "precio": 22.75,
+      "stock": 250,
+      "unidadMedida": "galón",
+      "codigoSku": "PINTURA-BLANCO-001",
+      "categoriaId": 3
+    },
+    {
+      "nombreProducto": "Cable Eléctrico #14",
+      "marca": "INDECO",
+      "descripcion": "Cable eléctrico calibre 14 AWG, cobre puro, para instalaciones residenciales",
+      "precio": 0.85,
+      "stock": 1000,
+      "unidadMedida": "metro",
+      "codigoSku": "CABLE-14-001",
+      "categoriaId": 4
+    },
+    {
+      "nombreProducto": "Cemento Pórtland Gris",
+      "marca": "ADELCA",
+      "descripcion": "Cemento pórtland gris de alta resistencia, bolsa de 50 kg",
+      "precio": 8.50,
+      "stock": 800,
+      "unidadMedida": "bolsa",
+      "codigoSku": "CEMENTO-001",
+      "categoriaId": 5
+    }
+  ],
+  "usuarios": [
+    {
+      "nombre": "Juan Pérez",
+      "email": "juan.perez@example.com",
+      "contrasena": "password123",
+      "tipoUsuario": "cliente"
+    },
+    {
+      "nombre": "María García",
+      "email": "maria.garcia@example.com",
+      "contrasena": "password123",
+      "tipoUsuario": "vendedor"
+    },
+    {
+      "nombre": "Carlos López",
+      "email": "carlos.lopez@example.com",
+      "contrasena": "password123",
+      "tipoUsuario": "bodeguero"
+    },
+    {
+      "nombre": "Ana Rodríguez",
+      "email": "ana.rodriguez@example.com",
+      "contrasena": "password123",
+      "tipoUsuario": "contador"
+    },
+    {
+      "nombre": "Admin Sistema",
+      "email": "admin@example.com",
+      "contrasena": "admin123",
+      "tipoUsuario": "administrador"
+    }
+  ],
+  "facturacionClientes": [
+    {
+      "usuarioId": 1,
+      "rut": "12345678-9",
+      "nombre": "Juan",
+      "apellidos": "Pérez García",
+      "telefono": "+56912345678",
+      "direccion": "Calle Principal 123, Apto 4B",
+      "comuna": "Santiago"
+    },
+    {
+      "usuarioId": 2,
+      "rut": "98765432-1",
+      "nombre": "María",
+      "apellidos": "García López",
+      "telefono": "+56987654321",
+      "direccion": "Avenida Secundaria 456",
+      "comuna": "Providencia"
+    }
+  ],
+  "inventarios": [
+    {
+      "productoId": 1,
+      "stockActual": 500,
+      "stockMinimo": 100,
+      "ubicacionBodega": "A-1-01"
+    },
+    {
+      "productoId": 2,
+      "stockActual": 120,
+      "stockMinimo": 50,
+      "ubicacionBodega": "B-2-03"
+    },
+    {
+      "productoId": 3,
+      "stockActual": 250,
+      "stockMinimo": 75,
+      "ubicacionBodega": "C-1-05"
+    },
+    {
+      "productoId": 4,
+      "stockActual": 1000,
+      "stockMinimo": 200,
+      "ubicacionBodega": "D-3-02"
+    },
+    {
+      "productoId": 5,
+      "stockActual": 800,
+      "stockMinimo": 150,
+      "ubicacionBodega": "E-2-01"
+    }
+  ]
+}

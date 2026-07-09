@@ -1,69 +1,148 @@
 package com.profecarlos.tallerapirest.restapi.dto;
 
-import java.util.Set;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
-/*
-    Este archivo es un DTO(Data Transfer Object)
-    Sirve como una Link table(SQL)
-    Hecho por Gustavo Santana
-*/
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
 public class PedidoDTO {
 
-    private String nombre;
-    private int categoria;
-    private double precio;
-    private String descripcion;
-    private Integer usuarioId;
-    private Set<Integer> productIds;
+    @NotNull
+    private Integer clienteId;
 
-    //Constructors
-    public PedidoDTO(String nombre, int categoria, double precio, String descripcion, Integer usuarioId, Set<Integer> productIds) {
-        this.nombre = nombre;
-        this.categoria = categoria;
-        this.precio = precio;
-        this.descripcion = descripcion;
-        this.usuarioId = usuarioId;
-        this.productIds = productIds;
-    }
-    
+    private Integer trabajadorId;
+
+    @NotNull
+    private Integer estadoId;
+
+    private Integer productoId;
+
+    private LocalDateTime fechaPedido;
+
+    private BigDecimal total;
+
+    @NotBlank
+    private String metodoPago;
+
+    @NotBlank
+    private String tipoEntrega;
+
+<<<<<<< HEAD
+    private String direccionEntrega;
+    private String comunaEntrega;
+    private String sucursalRetiro;
+=======
+    private String grupoCompraId;
+
+    private Integer pedidoReferencia;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
+
     public PedidoDTO() {
     }
 
-    //Getters & Setters
-    public String getNombre() {
-        return nombre;
+    public Integer getClienteId() {
+        return clienteId;
     }
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
+
+    public void setClienteId(Integer clienteId) {
+        this.clienteId = clienteId;
     }
-    public int getCategoria() {
-        return categoria;
+
+    public Integer getTrabajadorId() {
+        return trabajadorId;
     }
-    public void setCategoria(int categoria) {
-        this.categoria = categoria;
+
+    public void setTrabajadorId(Integer trabajadorId) {
+        this.trabajadorId = trabajadorId;
     }
-    public double getPrecio() {
-        return precio;
+
+    public Integer getEstadoId() {
+        return estadoId;
     }
-    public void setPrecio(double precio) {
-        this.precio = precio;
+
+    public void setEstadoId(Integer estadoId) {
+        this.estadoId = estadoId;
     }
-    public String getDescripcion() {
-        return descripcion;
+
+    public Integer getProductoId() {
+        return productoId;
     }
-    public void setDescripcion(String descripcion) {
-        this.descripcion = descripcion;
+
+    public void setProductoId(Integer productoId) {
+        this.productoId = productoId;
     }
-    public Integer getUsuarioId() {
-        return usuarioId;
+
+    public LocalDateTime getFechaPedido() {
+        return fechaPedido;
     }
-    public void setUsuarioId(Integer usuarioId) {
-        this.usuarioId = usuarioId;
+
+    public void setFechaPedido(LocalDateTime fechaPedido) {
+        this.fechaPedido = fechaPedido;
     }
-    public Set<Integer> getProductIds() {
-        return productIds;
+
+    public BigDecimal getTotal() {
+        return total;
     }
-    public void setProductIds(Set<Integer> productIds) {
-        this.productIds = productIds;
+
+    public void setTotal(BigDecimal total) {
+        this.total = total;
+    }
+
+    public String getMetodoPago() {
+        return metodoPago;
+    }
+
+    public void setMetodoPago(String metodoPago) {
+        this.metodoPago = metodoPago;
+    }
+
+    public String getTipoEntrega() {
+        return tipoEntrega;
+    }
+
+    public void setTipoEntrega(String tipoEntrega) {
+        this.tipoEntrega = tipoEntrega;
+    }
+
+<<<<<<< HEAD
+    public String getDireccionEntrega() {
+        return direccionEntrega;
+    }
+
+    public void setDireccionEntrega(String direccionEntrega) {
+        this.direccionEntrega = direccionEntrega;
+    }
+
+    public String getComunaEntrega() {
+        return comunaEntrega;
+    }
+
+    public void setComunaEntrega(String comunaEntrega) {
+        this.comunaEntrega = comunaEntrega;
+    }
+
+    public String getSucursalRetiro() {
+        return sucursalRetiro;
+    }
+
+    public void setSucursalRetiro(String sucursalRetiro) {
+        this.sucursalRetiro = sucursalRetiro;
+=======
+    public String getGrupoCompraId() {
+        return grupoCompraId;
+    }
+
+    public void setGrupoCompraId(String grupoCompraId) {
+        this.grupoCompraId = grupoCompraId;
+    }
+
+    public Integer getPedidoReferencia() {
+        return pedidoReferencia;
+    }
+
+    public void setPedidoReferencia(Integer pedidoReferencia) {
+        this.pedidoReferencia = pedidoReferencia;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
     }
 }

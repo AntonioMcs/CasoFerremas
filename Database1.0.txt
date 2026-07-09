@@ -1,0 +1,271 @@
+-- ==========================================
+-- ESQUEMA FERREMAS - PostgreSQL / Supabase
+-- Actualizado el 2026-07-09 segun el esquema real adjunto.
+-- El codigo nuevo usa clientes/trabajadores; usuarios queda solo como columna legacy
+-- en tablas historicas donde aun existe.
+-- ==========================================
+
+CREATE TABLE public.categorias (
+    id_categoria integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    nombre_categoria character varying NOT NULL,
+    CONSTRAINT categorias_pkey PRIMARY KEY (id_categoria)
+);
+
+CREATE TABLE public.clientes (
+    id_cliente integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    activo boolean,
+    ciudad character varying,
+    codigo_postal character varying,
+    contrasena character varying NOT NULL,
+    direccion character varying,
+    email character varying NOT NULL UNIQUE,
+    fecha_registro timestamp without time zone,
+    nombre character varying NOT NULL,
+    telefono character varying,
+    comuna character varying,
+    rut character varying,
+    CONSTRAINT clientes_pkey PRIMARY KEY (id_cliente)
+);
+
+CREATE TABLE public.estados_pedido (
+    id_estado integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    nombre_estado character varying NOT NULL,
+    CONSTRAINT estados_pedido_pkey PRIMARY KEY (id_estado)
+);
+
+CREATE TABLE public.proveedores (
+    id_proveedor integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    datos_contacto character varying NOT NULL,
+    direccion character varying,
+    email character varying,
+    nombre_proveedor character varying NOT NULL,
+    telefono character varying,
+    CONSTRAINT proveedores_pkey PRIMARY KEY (id_proveedor)
+);
+
+CREATE TABLE public.trabajadores (
+    id_trabajador integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    activo boolean,
+    contrasena character varying NOT NULL,
+    email character varying NOT NULL UNIQUE,
+    fecha_contratacion timestamp without time zone,
+    fecha_registro timestamp without time zone,
+    nombre character varying NOT NULL,
+    rol character varying NOT NULL CHECK (
+        rol::text = ANY (
+            ARRAY[
+                'ADMIN'::character varying,
+                'CAJERO'::character varying,
+                'BODEGUERO'::character varying,
+                'VENDEDOR'::character varying,
+                'CONTADOR'::character varying
+            ]::text[]
+        )
+    ),
+    telefono character varying,
+    CONSTRAINT trabajadores_pkey PRIMARY KEY (id_trabajador)
+);
+
+CREATE TABLE public.productos (
+    id_producto integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    codigo_sku character varying UNIQUE,
+    descripcion character varying,
+    fecha_registro timestamp without time zone,
+    marca character varying,
+    nombre_producto character varying NOT NULL,
+    precio numeric NOT NULL,
+    unidad_medida character varying,
+    id_categoria integer,
+    id_proveedor integer,
+    CONSTRAINT productos_pkey PRIMARY KEY (id_producto),
+    CONSTRAINT fkdtoa37luoxhhvbicrfiu5ygbj FOREIGN KEY (id_categoria) REFERENCES public.categorias(id_categoria),
+    CONSTRAINT fk146wfsn2op2nvbfuxae33xbim FOREIGN KEY (id_proveedor) REFERENCES public.proveedores(id_proveedor)
+);
+
+CREATE TABLE public.inventario (
+    id_inventario integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    stock_actual integer NOT NULL,
+    stock_minimo integer,
+    ubicacion_bodega character varying,
+    id_producto integer UNIQUE,
+    id_proveedor integer,
+    sucursal character varying,
+    CONSTRAINT inventario_pkey PRIMARY KEY (id_inventario),
+    CONSTRAINT fk92r6ui4b0u2kxqad8cyiusrdn FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto),
+    CONSTRAINT fkfaw3xt1j7iktfcj4kdl8brj3 FOREIGN KEY (id_proveedor) REFERENCES public.proveedores(id_proveedor)
+);
+
+CREATE TABLE public.pedidos (
+    id_pedido integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    fecha_pedido timestamp without time zone,
+    metodo_pago character varying,
+    tipo_entrega character varying,
+    total numeric,
+    id_cliente integer,
+    id_estado integer,
+    id_usuario integer,
+    id_trabajador integer,
+    grupo_compra_id character varying,
+    pedido_referencia integer,
+    id_producto integer,
+    CONSTRAINT pedidos_pkey PRIMARY KEY (id_pedido),
+    CONSTRAINT fkdnomiluem4t3x66t6b9aher47 FOREIGN KEY (id_cliente) REFERENCES public.clientes(id_cliente),
+    CONSTRAINT fkcvw31ulwe4ce83xuyq45xc8sf FOREIGN KEY (id_estado) REFERENCES public.estados_pedido(id_estado),
+    CONSTRAINT fkbtv9gis17lox51w5141wm56oa FOREIGN KEY (id_trabajador) REFERENCES public.trabajadores(id_trabajador),
+    CONSTRAINT fk877kxrqam9r8er0x4ku2wo0ju FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto)
+);
+
+CREATE TABLE public.carrito_compras (
+    id_carrito integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    cantidad integer NOT NULL,
+    descuento numeric,
+    fecha_agregado timestamp without time zone,
+    precio_unitario numeric,
+    subtotal numeric,
+    id_producto integer,
+    id_usuario integer,
+    id_cliente integer,
+    CONSTRAINT carrito_compras_pkey PRIMARY KEY (id_carrito),
+    CONSTRAINT fkt7g6djpxfjd39aybve9btj93t FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto),
+    CONSTRAINT fkgkvd5bu1r53liuy1s7qh4jsl4 FOREIGN KEY (id_cliente) REFERENCES public.clientes(id_cliente)
+);
+
+CREATE TABLE public.despachos (
+    id_despacho integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    direccion_entrega character varying,
+    estado_despacho character varying,
+    fecha_entrega timestamp without time zone,
+    fecha_envio timestamp without time zone,
+    id_pedido integer UNIQUE,
+    CONSTRAINT despachos_pkey PRIMARY KEY (id_despacho),
+    CONSTRAINT fk1ayra85p10j9ilgheqapjkab0 FOREIGN KEY (id_pedido) REFERENCES public.pedidos(id_pedido)
+);
+
+CREATE TABLE public.detalle_pedido (
+    id_detalle integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    cantidad integer NOT NULL,
+    precio_unitario numeric,
+    subtotal numeric,
+    id_pedido integer,
+    id_producto integer,
+    CONSTRAINT detalle_pedido_pkey PRIMARY KEY (id_detalle),
+    CONSTRAINT fkh10qteor08f4cbxhsf97qtgyk FOREIGN KEY (id_pedido) REFERENCES public.pedidos(id_pedido),
+    CONSTRAINT fknwadx4gon4by0uw748yo8chit FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto)
+);
+
+CREATE TABLE public.facturacion_cliente (
+    id_facturacion integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    apellidos character varying NOT NULL,
+    comuna character varying,
+    direccion character varying,
+    nombre character varying NOT NULL,
+    rut character varying,
+    telefono character varying,
+    id_usuario integer UNIQUE,
+    id_cliente integer UNIQUE,
+    CONSTRAINT facturacion_cliente_pkey PRIMARY KEY (id_facturacion),
+    CONSTRAINT fk9awg0oosb6rffi2dohv64e09v FOREIGN KEY (id_cliente) REFERENCES public.clientes(id_cliente)
+);
+
+CREATE TABLE public.fotos (
+    id_foto integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    descripcion character varying,
+    destacada boolean,
+    fecha_subida timestamp without time zone,
+    orden integer,
+    url_foto character varying NOT NULL,
+    id_producto integer NOT NULL,
+    CONSTRAINT fotos_pkey PRIMARY KEY (id_foto),
+    CONSTRAINT fkdgd9vb9hxtwxccagryup6lpvd FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto)
+);
+
+CREATE TABLE public.productos_imagenes (
+    id_imagen integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    principal boolean NOT NULL,
+    texto_alternativo character varying,
+    url_imagen character varying NOT NULL,
+    id_producto integer,
+    CONSTRAINT productos_imagenes_pkey PRIMARY KEY (id_imagen),
+    CONSTRAINT fka56f1kchjfh65wfnjwxeomr21 FOREIGN KEY (id_producto) REFERENCES public.productos(id_producto)
+);
+
+CREATE TABLE public.pagos (
+    id_pago integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    estado_pago character varying,
+    fecha_pago timestamp without time zone,
+    metodo_pago character varying,
+    monto numeric,
+    id_pedido integer UNIQUE,
+    authorization_code character varying,
+    token_transbank character varying,
+    url_transbank character varying,
+    CONSTRAINT pagos_pkey PRIMARY KEY (id_pago),
+    CONSTRAINT fkrfg5sdbj438hkscav9i92bmct FOREIGN KEY (id_pedido) REFERENCES public.pedidos(id_pedido)
+);
+
+CREATE TABLE public.audit_logs (
+    id_log integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    accion character varying NOT NULL,
+    detalle text,
+    entidad character varying NOT NULL,
+    entidad_id integer NOT NULL,
+    fecha_registro timestamp without time zone NOT NULL,
+    usuario_id integer,
+    usuario_nombre character varying,
+    usuario_tipo character varying,
+    CONSTRAINT audit_logs_pkey PRIMARY KEY (id_log)
+);
+
+CREATE TABLE public.logs_movimientos (
+    id_log integer GENERATED ALWAYS AS IDENTITY NOT NULL,
+    fecha timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    tipo_usuario character varying NOT NULL,
+    id_usuario integer NOT NULL,
+    nombre_usuario character varying,
+    rol character varying,
+    modulo character varying NOT NULL,
+    accion character varying NOT NULL,
+    descripcion text,
+    entidad character varying,
+    entidad_id integer,
+    ip character varying,
+    user_agent text,
+    CONSTRAINT logs_movimientos_pkey PRIMARY KEY (id_log)
+);
+
+INSERT INTO public.estados_pedido (nombre_estado)
+SELECT estado
+FROM (VALUES
+    ('pendiente'),
+    ('pagado'),
+    ('preparacion'),
+    ('despachado'),
+    ('entregado')
+) AS seed(estado)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM public.estados_pedido existente
+    WHERE lower(existente.nombre_estado) = lower(seed.estado)
+);
+
+-- Credencial de bodega para pruebas: e@ferremas.com / Bodega123!
+INSERT INTO public.trabajadores (
+    nombre,
+    email,
+    contrasena,
+    rol,
+    activo,
+    fecha_registro
+)
+VALUES (
+    'Bodeguero FERREMAS',
+    'e@ferremas.com',
+    'Bodega123!',
+    'BODEGUERO',
+    true,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (email) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    rol = EXCLUDED.rol,
+    activo = EXCLUDED.activo;

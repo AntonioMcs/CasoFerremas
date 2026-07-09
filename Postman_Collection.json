@@ -1,0 +1,380 @@
+{
+  "info": {
+    "name": "Ferretería API - Colección Completa",
+    "description": "Colección de peticiones para la API REST de Ferretería Ferremas",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Categorías",
+      "item": [
+        {
+          "name": "POST - Crear Herrajes",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreCategoria\": \"Herrajes\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Tuberías",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreCategoria\": \"Tuberías\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Pinturas",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreCategoria\": \"Pinturas\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Accesorios Eléctricos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreCategoria\": \"Accesorios Eléctricos\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Cemento y Adhesivos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreCategoria\": \"Cemento y Adhesivos\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        },
+        {
+          "name": "GET - Listar todas las categorías",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/v1/categorias",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "categorias"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Usuarios",
+      "item": [
+        {
+          "name": "POST - Crear Cliente",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombre\": \"Juan Pérez\",\"email\": \"juan.perez@example.com\",\"contrasena\": \"password123\",\"tipoUsuario\": \"cliente\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/usuarios",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "usuarios"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Vendedor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombre\": \"María García\",\"email\": \"maria.garcia@example.com\",\"contrasena\": \"password123\",\"tipoUsuario\": \"vendedor\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/usuarios",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "usuarios"]
+            }
+          }
+        },
+        {
+          "name": "GET - Listar todos los usuarios",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/v1/usuarios",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "usuarios"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Productos",
+      "item": [
+        {
+          "name": "POST - Crear Pernos de Acero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreProducto\": \"Pernos de Acero Inoxidable\",\"marca\": \"FERMAX\",\"descripcion\": \"Pernos de alta resistencia para construcción, acero inoxidable 304\",\"precio\": 15.99,\"stock\": 500,\"unidadMedida\": \"caja de 100\",\"codigoSku\": \"PERNO-001\",\"categoriaId\": 1}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Tubería PVC",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreProducto\": \"Tubería PVC 1 pulgada\",\"marca\": \"TIGRE\",\"descripcion\": \"Tubería de PVC para agua fría, 1 pulgada de diámetro, rollo de 50 metros\",\"precio\": 45.50,\"stock\": 120,\"unidadMedida\": \"rollo\",\"codigoSku\": \"TUBERIA-PVC-001\",\"categoriaId\": 2}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Pintura Blanca",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreProducto\": \"Pintura Acrílica Interior Blanco\",\"marca\": \"SOWAY\",\"descripcion\": \"Pintura acrílica de alta cobertura para interiores, color blanco, acabado mate\",\"precio\": 22.75,\"stock\": 250,\"unidadMedida\": \"galón\",\"codigoSku\": \"PINTURA-BLANCO-001\",\"categoriaId\": 3}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Cable Eléctrico",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreProducto\": \"Cable Eléctrico #14\",\"marca\": \"INDECO\",\"descripcion\": \"Cable eléctrico calibre 14 AWG, cobre puro, para instalaciones residenciales\",\"precio\": 0.85,\"stock\": 1000,\"unidadMedida\": \"metro\",\"codigoSku\": \"CABLE-14-001\",\"categoriaId\": 4}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        },
+        {
+          "name": "POST - Crear Cemento",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nombreProducto\": \"Cemento Pórtland Gris\",\"marca\": \"ADELCA\",\"descripcion\": \"Cemento pórtland gris de alta resistencia, bolsa de 50 kg\",\"precio\": 8.50,\"stock\": 800,\"unidadMedida\": \"bolsa\",\"codigoSku\": \"CEMENTO-001\",\"categoriaId\": 5}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        },
+        {
+          "name": "GET - Listar todos los productos",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/v1/productos",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "productos"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventarios",
+      "item": [
+        {
+          "name": "POST - Inventario Pernos",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"productoId\": 1,\"stockActual\": 500,\"stockMinimo\": 100,\"ubicacionBodega\": \"A-1-01\"}"
+            },
+            "url": {
+              "raw": "http://localhost:8080/api/v1/inventarios",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "inventarios"]
+            }
+          }
+        },
+        {
+          "name": "GET - Listar inventarios",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8080/api/v1/inventarios",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8080",
+              "path": ["api", "v1", "inventarios"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,13 +1,8 @@
 package com.profecarlos.tallerapirest.restapi.controller;
 
-import java.util.HashSet;
-
-//Hecho por Matias Caileo
-
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,138 +14,327 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.profecarlos.tallerapirest.restapi.dto.BoletaItemDTO;
+import com.profecarlos.tallerapirest.restapi.dto.BoletaPedidoDTO;
 import com.profecarlos.tallerapirest.restapi.dto.PedidoDTO;
+import com.profecarlos.tallerapirest.restapi.model.Cliente;
+import com.profecarlos.tallerapirest.restapi.model.DetallePedido;
+import com.profecarlos.tallerapirest.restapi.model.EstadoPedido;
 import com.profecarlos.tallerapirest.restapi.model.Pedido;
-import com.profecarlos.tallerapirest.restapi.model.Usuario;
-import com.profecarlos.tallerapirest.restapi.model.Category;
 import com.profecarlos.tallerapirest.restapi.model.Product;
-import com.profecarlos.tallerapirest.restapi.repository.CategoryRepository;
+import com.profecarlos.tallerapirest.restapi.model.Trabajador;
+import com.profecarlos.tallerapirest.restapi.repository.ClienteRepository;
+import com.profecarlos.tallerapirest.restapi.repository.DetallePedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.EstadoPedidoRepository;
+import com.profecarlos.tallerapirest.restapi.repository.PagoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.PedidoRepository;
 import com.profecarlos.tallerapirest.restapi.repository.ProductRepository;
-import com.profecarlos.tallerapirest.restapi.repository.UserRepository;
+import com.profecarlos.tallerapirest.restapi.repository.TrabajadorRepository;
+import com.profecarlos.tallerapirest.restapi.service.AuditLogService;
 
 @RestController
-@RequestMapping("/api/v1")
+@RequestMapping("/api/v1/pedidos")
 public class PedidoController {
-    // Inyección del repositorio
-    @Autowired
-    private PedidoRepository pedidoRepository;
 
-    @Autowired
-    private CategoryRepository categoryRepository;
+    private static final List<String> METODOS_PAGO = List.of("efectivo", "tarjeta", "transferencia");
+    private static final List<String> TIPOS_ENTREGA = List.of("retiro_tienda", "despacho_domicilio");
 
-    @Autowired
-    private UserRepository usuarioRepository;
+    private final PedidoRepository pedidoRepository;
+    private final ClienteRepository clienteRepository;
+    private final TrabajadorRepository trabajadorRepository;
+    private final EstadoPedidoRepository estadoPedidoRepository;
+<<<<<<< HEAD
+    private final DetallePedidoRepository detallePedidoRepository;
+=======
+    private final ProductRepository productRepository;
+    private final PagoRepository pagoRepository;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
+    private final AuditLogService auditLogService;
 
-    @Autowired
-    private ProductRepository productRepository;
+    public PedidoController(PedidoRepository pedidoRepository, ClienteRepository clienteRepository,
+            TrabajadorRepository trabajadorRepository, EstadoPedidoRepository estadoPedidoRepository,
+<<<<<<< HEAD
+            DetallePedidoRepository detallePedidoRepository,
+            AuditLogService auditLogService) {
+=======
+            ProductRepository productRepository, PagoRepository pagoRepository, AuditLogService auditLogService) {
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
+        this.pedidoRepository = pedidoRepository;
+        this.clienteRepository = clienteRepository;
+        this.trabajadorRepository = trabajadorRepository;
+        this.estadoPedidoRepository = estadoPedidoRepository;
+<<<<<<< HEAD
+        this.detallePedidoRepository = detallePedidoRepository;
+=======
+        this.productRepository = productRepository;
+        this.pagoRepository = pagoRepository;
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
+        this.auditLogService = auditLogService;
+    }
 
-    // POST: Crear pedido usando PedidoDTO
-    @PostMapping("pedido")
-    public ResponseEntity<?> insertProduct(@RequestBody PedidoDTO pedidoDTO) {
-        //Verifica si existe una categoria en el body
-        Category categoria = categoryRepository.findById(pedidoDTO.getCategoria()).orElse(null);
-        //Si no encuentra una retorna error
-        if (categoria == null) {
-            return new ResponseEntity<>("Categoría no encontrada ", HttpStatus.BAD_REQUEST);
+    @GetMapping
+    public ResponseEntity<List<Pedido>> listarTodos() {
+        return ResponseEntity.ok(pedidoRepository.findAll());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Pedido> buscarPorId(@PathVariable Integer id) {
+        return pedidoRepository.findById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/cliente/{clienteId}")
+    public ResponseEntity<List<Pedido>> listarPorCliente(@PathVariable Integer clienteId) {
+        return ResponseEntity.ok(pedidoRepository.findByClienteId(clienteId));
+    }
+
+    @GetMapping("/pendientes-transferencia")
+    public ResponseEntity<List<Pedido>> listarTransferenciasPendientes() {
+        return ResponseEntity.ok(pedidoRepository.findByMetodoPagoAndEstadoPedidoNombreEstadoIgnoreCase("transferencia", "pendiente"));
+    }
+
+    @GetMapping("/estado/{nombreEstado}")
+    public ResponseEntity<List<Pedido>> listarPorEstado(@PathVariable String nombreEstado) {
+        return ResponseEntity.ok(pedidoRepository.findByEstadoPedidoNombreEstadoIgnoreCase(nombreEstado));
+    }
+
+    @GetMapping("/bodega")
+    public ResponseEntity<List<BoletaPedidoDTO>> listarPedidosBodega() {
+        List<String> estados = List.of("pagado", "pendiente", "listo", "preparando", "entregando");
+        List<BoletaPedidoDTO> pedidos = pedidoRepository.findAll().stream()
+                .filter(pedido -> pedido.getEstadoPedido() != null)
+                .filter(pedido -> estados.contains(pedido.getEstadoPedido().getNombreEstado().toLowerCase()))
+                .map(this::toBoletaDTO)
+                .toList();
+        return ResponseEntity.ok(pedidos);
+    }
+
+    @GetMapping("/{id}/boleta")
+    public ResponseEntity<?> obtenerBoleta(@PathVariable Integer id) {
+        return pedidoRepository.findById(id)
+                .<ResponseEntity<?>>map(pedido -> ResponseEntity.ok(toBoletaDTO(pedido)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/{id}/estado")
+    public ResponseEntity<?> cambiarEstado(@PathVariable Integer id, @RequestBody Object estadoRequest) {
+        return pedidoRepository.findById(id).map(pedido -> {
+            String estadoNombre = extraerNombreEstado(estadoRequest);
+            EstadoPedido estado = obtenerEstadoPedido(estadoNombre);
+            List<Pedido> pedidosGrupo = pedido.getGrupoCompraId() == null || pedido.getGrupoCompraId().isBlank()
+                    ? List.of(pedido)
+                    : pedidoRepository.findByGrupoCompraIdOrderByIdPedidoAsc(pedido.getGrupoCompraId());
+
+            Pedido principal = pedido;
+            for (Pedido item : pedidosGrupo) {
+                item.setEstadoPedido(estado);
+                Pedido guardado = pedidoRepository.save(item);
+                if (guardado.getIdPedido().equals(item.getPedidoReferencia())) {
+                    principal = guardado;
+                }
+                sincronizarPagoTransferencia(guardado, estadoNombre);
+            }
+
+            auditLogService.registrar("PEDIDO", principal.getIdPedido(), "ESTADO", "Estado actualizado a " + estado.getNombreEstado());
+            return ResponseEntity.ok(principal);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    private String extraerNombreEstado(Object estadoRequest) {
+        String estadoNombre = null;
+
+        if (estadoRequest instanceof String raw) {
+            estadoNombre = raw;
+        } else if (estadoRequest instanceof Map<?, ?> body) {
+            Object value = body.get("estado");
+            if (value == null) {
+                value = body.get("nombreEstado");
+            }
+            estadoNombre = value == null ? null : value.toString();
         }
 
-        //Variable para obtener la id_usuario y guardarla en (usuario)
-        Usuario usuario = usuarioRepository.findById(pedidoDTO.getUsuarioId()).orElse(null);
-        
-        //Condicion para verificar si se ingresó una id
-        if (pedidoDTO.getUsuarioId() == null) {
-            return new ResponseEntity<>("Error: El ID del usuario (usuarioId) es requerido. ", HttpStatus.BAD_REQUEST);
+        if (estadoNombre == null || estadoNombre.trim().isBlank()) {
+            throw new IllegalArgumentException("El estado del pedido es requerido");
         }
 
-        //Condicion para verificar si existe el usuario
-        if (usuario == null){
-            return new ResponseEntity<>("Error: Usuario no encontrado",HttpStatus.NOT_FOUND);
+        return estadoNombre.trim().replace("\"", "").toLowerCase();
+    }
+
+    private EstadoPedido obtenerEstadoPedido(String estadoNombre) {
+        List<EstadoPedido> estados = estadoPedidoRepository.findAllByNombreEstadoIgnoreCaseOrderByIdEstadoAsc(estadoNombre);
+        if (!estados.isEmpty()) {
+            return estados.get(0);
+        }
+        return estadoPedidoRepository.save(new EstadoPedido(null, estadoNombre));
+    }
+
+    private void sincronizarPagoTransferencia(Pedido pedido, String estadoNombre) {
+        if (pedido.getMetodoPago() == null || !"transferencia".equalsIgnoreCase(pedido.getMetodoPago())) {
+            return;
         }
 
-        Set<Product> productsInPedido = new HashSet<>();
-        if (pedidoDTO.getProductIds() != null){
-            for (Integer productId : pedidoDTO.getProductIds()){
-                Product product = productRepository.findById(productId).orElseThrow(() -> new RuntimeException("Producto no encontrado: " + productId));
-                productsInPedido.add(product);
+        pagoRepository.findAllByPedidoIdPedidoOrderByIdPagoAsc(pedido.getIdPedido()).forEach(pago -> {
+            if ("pagado".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PAGADO");
+            } else if ("pendiente".equalsIgnoreCase(estadoNombre)) {
+                pago.setEstadoPago("PENDIENTE");
+            } else {
+                return;
+            }
+            pagoRepository.save(pago);
+        });
+    }
+
+    @PostMapping
+    public ResponseEntity<?> crear(@RequestBody PedidoDTO dto) {
+        ResponseEntity<?> validacion = validarDTO(dto);
+        if (validacion != null) {
+            return validacion;
+        }
+
+        Pedido pedido = new Pedido();
+        ResponseEntity<?> resultado = aplicarRelaciones(pedido, dto);
+        if (resultado != null) {
+            return resultado;
+        }
+        aplicarDatos(pedido, dto);
+        Pedido guardado = pedidoRepository.save(pedido);
+        auditLogService.registrar("PEDIDO", guardado.getIdPedido(), "CREAR", "Pedido creado", guardado.getIdPedido(), null, null);
+        return new ResponseEntity<>(guardado, HttpStatus.CREATED);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<?> actualizar(@PathVariable Integer id, @RequestBody PedidoDTO dto) {
+        ResponseEntity<?> validacion = validarDTO(dto);
+        if (validacion != null) {
+            return validacion;
+        }
+
+        return pedidoRepository.findById(id).map(existing -> {
+            ResponseEntity<?> resultado = aplicarRelaciones(existing, dto);
+            if (resultado != null) {
+                return resultado;
+            }
+            aplicarDatos(existing, dto);
+            Pedido actualizado = pedidoRepository.save(existing);
+            auditLogService.registrar("PEDIDO", actualizado.getIdPedido(), "ACTUALIZAR", "Pedido actualizado", actualizado.getIdPedido(), null, null);
+            return ResponseEntity.ok(actualizado);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> eliminar(@PathVariable Integer id) {
+        if (!pedidoRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        pedidoRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    private ResponseEntity<?> aplicarRelaciones(Pedido pedido, PedidoDTO dto) {
+        Cliente cliente = clienteRepository.findById(dto.getClienteId()).orElse(null);
+        if (cliente == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Cliente no encontrado");
+        }
+
+        EstadoPedido estadoPedido = estadoPedidoRepository.findById(dto.getEstadoId()).orElse(null);
+        if (estadoPedido == null) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Estado de pedido no encontrado");
+        }
+
+        Trabajador trabajador = null;
+        if (dto.getTrabajadorId() != null) {
+            trabajador = trabajadorRepository.findById(dto.getTrabajadorId()).orElse(null);
+            if (trabajador == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Trabajador no encontrado");
             }
         }
 
-        //Proceso de creacion y guardado del objeto
-        Pedido pedido = new Pedido();
-        pedido.setNombre(pedidoDTO.getNombre());
-        pedido.setCategoria(categoria);
-        pedido.setPrecio(pedidoDTO.getPrecio());
-        pedido.setDescripcion(pedidoDTO.getDescripcion());
-        pedido.setUsuario(usuario);
-        pedido.setProducts(productsInPedido);
-        Pedido savedPedido = pedidoRepository.save(pedido);
-        return new ResponseEntity<>(savedPedido, HttpStatus.CREATED);
-    }
+        pedido.setCliente(cliente);
+        pedido.setTrabajador(trabajador);
+        pedido.setEstadoPedido(estadoPedido);
 
-    @GetMapping("pedidos")
-    public ResponseEntity<List<Pedido>> getAllProducts() {
-        List<Pedido> Pedidos = pedidoRepository.findAll();
-        return new ResponseEntity<>(Pedidos, HttpStatus.OK);
-    }
-
-    // Métodos adicionales para completar el CRUD
-    @GetMapping("pedido/{id}")
-    public ResponseEntity<Pedido> getProductById(@PathVariable("id") int id) {
-        return pedidoRepository.findById(id)                              // Busca el pedido por ID
-                .map(order -> new ResponseEntity<>(order, HttpStatus.OK))
-                .orElse(new ResponseEntity<>(HttpStatus.NOT_FOUND));
-    }
-
-    @GetMapping("pedidos/categoria/{categoria}")
-    public ResponseEntity<List<Pedido>> getProductsByCategoria(@PathVariable int categoria) {
-        List<Pedido> Pedidos = pedidoRepository.findByCategoriaId(categoria);   // Busca pedidos por ID de categoría
-        return new ResponseEntity<>(Pedidos, HttpStatus.OK);
-    }
-
-    @PutMapping("pedido/{id}")
-    public ResponseEntity<?> updatePedido(@PathVariable("id") int id, @RequestBody PedidoDTO pedidoDTO) {
-    // Verifica si existe el pedido
-    return pedidoRepository.findById(id).map(pedidoExistente -> {
-        // Verifica si existe la categoría
-        Category categoria = categoryRepository.findById(pedidoDTO.getCategoria()).orElse(null);  
-        if (categoria == null) {                                                                     
-            return new ResponseEntity<>("Categoría no encontrada", HttpStatus.BAD_REQUEST);
+        Product producto = null;
+        if (dto.getProductoId() != null) {
+            producto = productRepository.findById(dto.getProductoId()).orElse(null);
+            if (producto == null) {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Producto no encontrado");
+            }
         }
-        if (pedidoDTO.getUsuarioId() == null) {            // VERIFICA SI EL ID DEL USUSARIO ES NULO
-            return new ResponseEntity<>("El ID del usuario (usuarioId) es requerido", HttpStatus.BAD_REQUEST);
-        }
-        Usuario usuario = usuarioRepository.findById(pedidoDTO.getUsuarioId()).orElse(null);   
-        if (usuario == null) {                                                                        // VERIFICACION SI EL USUARIO EXISTE
-            return new ResponseEntity<>("Usuario no encontrado", HttpStatus.NOT_FOUND);
-        }
-        pedidoExistente.setNombre(pedidoDTO.getNombre());  
-        pedidoExistente.setDescripcion(pedidoDTO.getDescripcion());
-        pedidoExistente.setPrecio(pedidoDTO.getPrecio());                    //ACTUALIZA LOS CAMBIOS DEL PEDIDO EXISTENTE
-        pedidoExistente.setCategoria(categoria);
-        pedidoExistente.setUsuario(usuario);
-        Pedido pedidoActualizado = pedidoRepository.save(pedidoExistente);
-        return new ResponseEntity<>(pedidoActualizado, HttpStatus.OK);
-    }).orElse(new ResponseEntity<>("Pedido no encontrado", HttpStatus.NOT_FOUND));
-}
-       
-    //ELIMINAR PEDIDO POR ID
+        pedido.setProducto(producto);
 
-    @DeleteMapping("pedido/{id}")
-    public ResponseEntity<Void> deleteOrder(@PathVariable("id") int id) {
-        return pedidoRepository.findById(id)
-                .map(pedido -> {
-                    Set<Product> productsInPedido = new HashSet<>();
-                    if (pedido.getProducts() != null){
-                        for (Product product : pedido.getProducts()){
-                            Product prod = productRepository.findById(product.getId())
-                                .orElseThrow(() -> new RuntimeException("Producto no encontrado: " + product.getId()));
-                            productsInPedido.add(prod);
-                        }
-                    }
-                    pedidoRepository.delete(pedido);
-                    return new ResponseEntity<Void>(HttpStatus.NO_CONTENT);
-                })
-                .orElse(new ResponseEntity<Void>(HttpStatus.NOT_FOUND));
+        return null;
+    }
+
+    private void aplicarDatos(Pedido pedido, PedidoDTO dto) {
+        pedido.setFechaPedido(dto.getFechaPedido() != null ? dto.getFechaPedido() : pedido.getFechaPedido());
+        pedido.setTotal(dto.getTotal());
+        pedido.setMetodoPago(dto.getMetodoPago());
+        pedido.setTipoEntrega(dto.getTipoEntrega());
+<<<<<<< HEAD
+        pedido.setDireccionEntrega(dto.getDireccionEntrega());
+        pedido.setComunaEntrega(dto.getComunaEntrega());
+        pedido.setSucursalRetiro(dto.getSucursalRetiro());
+=======
+        pedido.setGrupoCompraId(dto.getGrupoCompraId());
+        pedido.setPedidoReferencia(dto.getPedidoReferencia());
+>>>>>>> b85cc7793ad42ad14d8b3a5307c8dfe08d1df517
+    }
+
+    private ResponseEntity<?> validarDTO(PedidoDTO dto) {
+        if (!METODOS_PAGO.contains(dto.getMetodoPago())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("metodo_pago debe ser efectivo, tarjeta o transferencia");
+        }
+        if (!TIPOS_ENTREGA.contains(dto.getTipoEntrega())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("tipo_entrega debe ser retiro_tienda o despacho_domicilio");
+        }
+        return null;
+    }
+
+    private BoletaPedidoDTO toBoletaDTO(Pedido pedido) {
+        BoletaPedidoDTO dto = new BoletaPedidoDTO();
+        dto.setPedidoId(pedido.getIdPedido());
+        dto.setNumeroBoleta(pedido.getNumeroBoleta());
+        dto.setFechaPedido(pedido.getFechaPedido());
+        dto.setFechaBoleta(pedido.getFechaBoleta());
+        dto.setMetodoPago(pedido.getMetodoPago());
+        dto.setEstadoPedido(pedido.getEstadoPedido() != null ? pedido.getEstadoPedido().getNombreEstado() : null);
+        dto.setTipoEntrega(pedido.getTipoEntrega());
+        dto.setDireccionEntrega(pedido.getDireccionEntrega());
+        dto.setComunaEntrega(pedido.getComunaEntrega());
+        dto.setSucursalRetiro(pedido.getSucursalRetiro());
+        dto.setNeto(pedido.getNeto());
+        dto.setIva(pedido.getIva());
+        dto.setTotal(pedido.getTotal());
+
+        Cliente cliente = pedido.getCliente();
+        if (cliente != null) {
+            dto.setClienteNombre(cliente.getNombre());
+            dto.setClienteRut(cliente.getRut());
+            dto.setClienteEmail(cliente.getEmail());
+        }
+
+        List<BoletaItemDTO> items = detallePedidoRepository.findByPedidoIdPedido(pedido.getIdPedido()).stream()
+                .map(this::toBoletaItemDTO)
+                .toList();
+        dto.setItems(items);
+        return dto;
+    }
+
+    private BoletaItemDTO toBoletaItemDTO(DetallePedido detalle) {
+        BoletaItemDTO dto = new BoletaItemDTO();
+        Product producto = detalle.getProducto();
+        if (producto != null) {
+            dto.setProductoId(producto.getId());
+            dto.setNombreProducto(producto.getNombreProducto());
+            dto.setSku(producto.getCodigoSku());
+        }
+        dto.setCantidad(detalle.getCantidad());
+        dto.setPrecioUnitario(detalle.getPrecioUnitario());
+        dto.setSubtotal(detalle.getSubtotal());
+        dto.setInventarioId(detalle.getInventarioId());
+        dto.setOrigenStock(detalle.getOrigenStock());
+        return dto;
     }
 }
